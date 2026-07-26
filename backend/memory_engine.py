@@ -8,14 +8,12 @@ from config import DB_PATH, DATA_DIR
 class MemoryEngine:
     def __init__(self, db_path=DB_PATH):
         self.db_path = str(db_path)
-        # Ensure parent directory exists
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
     def _get_connection(self):
         conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
-        # Enable PRAGMA WAL mode for better concurrency
         try:
             conn.execute("PRAGMA journal_mode=WAL;")
         except Exception:
@@ -90,6 +88,50 @@ class MemoryEngine:
             ''')
 
             conn.commit()
+
+            # Auto-seed baseline Misa profile if database is newly created
+            cursor.execute("SELECT COUNT(*) as cnt FROM user_profile")
+            row = cursor.fetchone()
+            if row and row["cnt"] == 0:
+                print("[MemoryEngine] Seeding initial Misa baseline profile...")
+                profile_items = [
+                    ("Kullanıcı Adı", "Misa", "personal"),
+                    ("Konum", "Eskişehir, Türkiye", "personal"),
+                    ("Ana Hedef", "Tüm hayatımı, projelerimi, aramalarımı ve günlük işlerimi %100 AI ile canlı entegre etmek.", "goals"),
+                    ("İletişim & Çalışma Tarzı", "Direkt, net, laf kalabalığı olmayan, risk ve fırsat odaklı proaktif rehberlik.", "preferences"),
+                    ("Geliştirme Ortamı", "Python, Node.js, React, Docker, Antigravity IDE", "tech_stack")
+                ]
+                for key, val, cat in profile_items:
+                    cursor.execute('''
+                        INSERT INTO user_profile (key, value, category, updated_at)
+                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    ''', (key, val, cat))
+
+                starter_tasks = [
+                    ("Telegram Botu (@Misanaibibot) üzerinden ilk mesajı gönder", "high", "onboarding"),
+                    ("Yapay zeka asistanına günün 1 ana hedefini söyle", "medium", "daily")
+                ]
+                for title, prio, cat in starter_tasks:
+                    cursor.execute('''
+                        INSERT INTO tasks (title, priority, category, status, created_at)
+                        VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP)
+                    ''', (title, prio, cat))
+
+                starter_recs = [
+                    ("strategic", "⚡ Canlı AI Hayat Entegrasyonu Bulutta Aktif!", "Misa, sisteminiz Render üzerinde 7/24 canlı takip modunda. @Misanaibibot üzerinden veya buradaki giriş kutusundan aklınıza gelen herhangi bir fikri paylaşabilirsiniz.", "Bulut başlangıç kurulumu yapıldı.", "high"),
+                    ("energy_coach", "🧠 Günlük AI Koçluk İpucu", "Yapay zeka sizi tanıdıkça proaktif uyarılar keskinleşecek. Bugün en kritik işinize odaklanın.", "Kişisel profil analizi.", "medium")
+                ]
+                for rec_type, title, advice, reasoning, priority in starter_recs:
+                    cursor.execute('''
+                        INSERT INTO proactive_recommendations (type, title, advice, reasoning, priority, status)
+                        VALUES (?, ?, ?, ?, ?, 'active')
+                    ''', (rec_type, title, advice, reasoning, priority))
+
+                cursor.execute('''
+                    INSERT INTO timeline_logs (source, category, content, summary, tags)
+                    VALUES ('system', 'personal', 'Life AI OS Render bulut sunucusunda başlatıldı. Misa kişisel profili aktif.', 'Bulut sistem kurulumu yapıldı.', '["sistem", "render"]')
+                ''')
+                conn.commit()
 
     def add_log(self, source: str, category: str, content: str, summary: str = "", tags: list = None, metadata: dict = None):
         try:
@@ -289,5 +331,4 @@ class MemoryEngine:
         except Exception as e:
             print(f"[MemoryEngine Error - update_recommendation_status]: {e}")
 
-# Global instance
 memory = MemoryEngine()
