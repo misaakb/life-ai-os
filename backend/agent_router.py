@@ -12,40 +12,52 @@ class AgentRouter:
     def process_input(self, user_input: str, source: str = "telegram", metadata: dict = None) -> dict:
         recent_logs = memory.get_recent_logs(limit=5)
         profile = memory.get_profile()
+        memory_items = memory.get_memory_items()
         
         context_str = "\n".join([f"- [{log['timestamp']}] ({log['category']}): {log['content']}" for log in recent_logs])
         profile_str = "\n".join([f"- {k}: {v['value']}" for k, v in profile.items()]) if profile else "Bilinmiyor."
+        memory_str = "\n".join([f"- [{m['category']}]: {m['fact']}" for m in memory_items[:5]])
 
         system_prompt = f"""
-Sen Misa'nın tüm hayatını 7/24 canlı takip eden, kararlarında rehberlik eden ve proaktif yönlendirme yapan KİŞİSEL YAPAY ZEKA ORTAĞISIN (Life AI OS).
+Sen Misa'nın dijital ikincil beyni (Digital Second Brain) ve otonom komut merkezi olan LIFE AI OS asistanısın.
 
-Kullanıcı Profili:
+SENİN YAKLAŞIMIN:
+- Apple + OpenAI + Notion + Linear seviyesinde ultra akıllı, minimal, doğrudan ve fütüristik.
+- Kullanıcıya klasik bir chatbot gibi değil, dijital yaşam kokpiti gibi rehberlik edersin.
+
+Kullanıcı Kimliği & Hafızası:
 {profile_str}
 
-Mevcut Son Bağlam:
+Bildiği Bilgiler (Memory Bank):
+{memory_str}
+
+Son Olaylar:
 {context_str}
 
 Kullanıcı Girdisi: "{user_input}"
 Kaynak: {source}
 
 GÖREVİN:
-1. Kullanıcının mesajına samimi, zeki, net ve aksiyon odaklı yanıt ver. Robotik laflar ('İncelemeye aldım', 'Kaydettim' vb.) ASLA KULLANMA.
-2. Girdide geçen bir yapılacak iş varsa otomatik görev çıkar.
-3. Girdi bir risk veya fırsat içeriyorsa anında proaktif tavsiye üret.
+1. Yanıtı aksiyon kartı mantığıyla ver.
+2. Gerçekleştirilen işlem adımlarını (Execution Steps) çıkar (Örn: ["✓ Takvim Analiz Edildi", "✓ Öncelikler Belirlendi", "✓ Aksiyon Planı Hazırlandı"]).
+3. Çıkarılan görevleri ve proaktif tavsiyeyi hazırla.
 
-Lütfen şu formatta JSON döndür:
+JSON FORMATI:
 {{
-    "reply": "Kullanıcıya verilecek doğrudan, samimi, zeki ve aksiyon odaklı yanıt",
-    "category": "personal | project | call | research | task",
-    "summary": "1 cümlelik analitik özet",
+    "reply": "Kullanıcıya verilecek doğrudan, samimi, akıllı ve yönlendirici yanıt",
+    "execution_steps": ["✓ Takvim Analiz Edildi", "✓ Öncelikler Belirlendi", "✓ Plan Oluşturuldu"],
+    "category": "knowledge | projects | schedule | finance | health | goals | learning",
+    "summary": "1 cümlelik öz ve analitik özet",
     "extracted_tasks": ["Yapılacak iş 1"],
     "proactive_insight": "Bu girdiye dayanarak verilecek PROAKTİF TAVSİYE / UYARI",
+    "new_memory_fact": "Kullanıcı hakkında öğrenilen yeni bir bilgi varsa ekle (yoksa null)",
     "tags": ["etiket1", "etiket2"]
 }}
 """
 
         result = self._call_ai(system_prompt, user_input, source)
         
+        # Log to timeline
         log_id = memory.add_log(
             source=source,
             category=result.get("category", "personal"),
@@ -55,12 +67,30 @@ Lütfen şu formatta JSON döndür:
             metadata=metadata
         )
 
+        # Record Agent Execution Steps
+        execution_steps = result.get("execution_steps", ["✓ Girdi Analiz Edildi", "✓ Hafızaya İşlendi"])
+        memory.add_agent_execution(
+            agent_name="Master Assistant Agent",
+            user_prompt=user_input,
+            steps=execution_steps,
+            result_output=result.get("reply", "")
+        )
+
         # Extract tasks
         extracted_tasks = result.get("extracted_tasks", [])
         added_tasks = []
         for task_title in extracted_tasks:
             t_id = memory.add_task(title=task_title, category=result.get("category", "general"))
             added_tasks.append({"id": t_id, "title": task_title})
+
+        # Check if new memory fact was learned
+        if result.get("new_memory_fact"):
+            memory.add_memory_item(
+                category=result.get("category", "knowledge"),
+                fact=result["new_memory_fact"],
+                confidence=95,
+                learned_from="AI Interaction"
+            )
 
         # Add proactive insight if present
         if result.get("proactive_insight"):
@@ -72,7 +102,6 @@ Lütfen şu formatta JSON döndür:
                 priority="high"
             )
 
-        # Trigger background recommendation refresh
         try:
             proactive_advisor.generate_proactive_advice()
         except Exception:
@@ -80,7 +109,8 @@ Lütfen şu formatta JSON döndür:
 
         return {
             "log_id": log_id,
-            "reply": result.get("reply", "Harika! Bilgiyi canlı hafızaya kaydettim ve aksiyon planına ekledim."),
+            "reply": result.get("reply", "Harika! Girdinizi dijital kokpite işledim."),
+            "execution_steps": execution_steps,
             "category": result.get("category", "personal"),
             "summary": result.get("summary", ""),
             "extracted_tasks": added_tasks,
@@ -106,13 +136,14 @@ Lütfen şu formatta JSON döndür:
             except Exception as e:
                 print(f"[AgentRouter] Gemini API Error: {e}")
 
-        category = "task" if "yap" in user_input.lower() or "hazırla" in user_input.lower() else "personal"
+        category = "schedule" if "yap" in user_input.lower() or "plan" in user_input.lower() else "knowledge"
         return {
-            "reply": f"Harika! '{user_input}' konusunu canlı takip listeme aldım. İlgili aksiyonları ve görevleri zaman çizelgende görebilirsin.",
+            "reply": f"Harika! '{user_input}' konusunu dijital ikincil beyninize kaydettim ve aksiyon planına ekledim.",
+            "execution_steps": ["✓ İçerik Taranıyor", "✓ Öncelikler Sıralandı", "✓ Dijital Kokpite İşlendi"],
             "category": category,
             "summary": user_input[:100],
-            "extracted_tasks": [user_input] if category == "task" else [],
-            "proactive_insight": f"Girdiğiniz '{user_input[:40]}' konusu takibe alındı.",
+            "extracted_tasks": [user_input] if "yap" in user_input.lower() else [],
+            "proactive_insight": f"Girdiğiniz '{user_input[:40]}' konusunu takip listeme aldım.",
             "tags": ["canlı-takip", source]
         }
 

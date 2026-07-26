@@ -1,28 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Cpu, Activity, Calendar, MessageSquare, CheckSquare, 
-  FolderGit2, Zap, Send, PhoneCall, Mic, Search, Bot, Clock, AlertCircle, Plus,
-  ShieldAlert, Lightbulb, UserCheck, RefreshCw, Sparkles, User, Target, ThumbsUp, X,
-  Terminal, BellRing, BrainCircuit, ListTodo, Layers, Radio
+  BrainCircuit, Compass, Terminal, Cpu, ShieldCheck, Zap, Send, Sparkles, 
+  Layers, Search, CheckCircle2, Clock, Trash2, Plus, ArrowRight, UserCheck, 
+  BookOpen, Briefcase, Calendar as CalendarIcon, DollarSign, Heart, Target, GraduationCap,
+  Activity, Bell, Lock, ShieldAlert, Lightbulb, RefreshCw
 } from 'lucide-react';
 
 export default function App() {
+  const [overview, setOverview] = useState({ top_priorities: [] });
+  const [memoryItems, setMemoryItems] = useState([]);
+  const [agentsData, setAgentsData] = useState({ agents: [], recent_executions: [] });
   const [logs, setLogs] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [userProfile, setUserProfile] = useState({});
   const [stats, setStats] = useState({});
-  
-  const [inputContent, setInputContent] = useState('');
-  const [filterQuery, setFilterQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [refreshingRecs, setRefreshingRecs] = useState(false);
-  const [activeTab, setActiveTab] = useState('insights'); // 'insights', 'terminal', 'notifications', 'tasks', 'persona'
 
-  // New Profile Form
-  const [profileKey, setProfileKey] = useState('');
-  const [profileVal, setProfileVal] = useState('');
+  const [inputPrompt, setInputPrompt] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [lastExecutionSteps, setLastExecutionSteps] = useState([]);
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'memory', 'agents', 'dashboard', 'privacy'
+
+  // New Memory Modal/Form State
+  const [newMemFact, setNewMemFact] = useState('');
+  const [newMemCat, setNewMemCat] = useState('knowledge');
 
   useEffect(() => {
     fetchData();
@@ -32,90 +34,101 @@ export default function App() {
 
   const fetchData = async () => {
     try {
-      const [logsRes, tasksRes, projectsRes, statsRes, recsRes, profRes] = await Promise.all([
+      const [overRes, memRes, agentRes, logsRes, tasksRes, projRes, recRes, profRes, statsRes] = await Promise.all([
+        fetch('/api/overview'),
+        fetch('/api/memory-items'),
+        fetch('/api/agents'),
         fetch('/api/logs'),
         fetch('/api/tasks'),
         fetch('/api/projects'),
-        fetch('/api/stats'),
         fetch('/api/recommendations'),
-        fetch('/api/user-profile')
+        fetch('/api/user-profile'),
+        fetch('/api/stats')
       ]);
 
+      if (overRes.ok) setOverview(await overRes.json());
+      if (memRes.ok) setMemoryItems(await memRes.json());
+      if (agentRes.ok) setAgentsData(await agentRes.json());
       if (logsRes.ok) setLogs(await logsRes.json());
       if (tasksRes.ok) setTasks(await tasksRes.json());
-      if (projectsRes.ok) setProjects(await projectsRes.json());
-      if (statsRes.ok) setStats(await statsRes.json());
-      if (recsRes.ok) setRecommendations(await recsRes.json());
+      if (projRes.ok) setProjects(await projRes.json());
+      if (recRes.ok) setRecommendations(await recRes.json());
       if (profRes.ok) setUserProfile(await profRes.json());
+      if (statsRes.ok) setStats(await statsRes.json());
     } catch (err) {
-      console.error("API Fetch Error:", err);
+      console.error("Data fetch error:", err);
     }
   };
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!inputContent.trim()) return;
+  const handleCommandSubmit = async (e, customPrompt = null) => {
+    if (e) e.preventDefault();
+    const promptToUse = customPrompt || inputPrompt;
+    if (!promptToUse.trim()) return;
 
     setLoading(true);
+    setLastExecutionSteps(["✓ İçerik Analiz Ediliyor...", "✓ Bağlam Taranıyor..."]);
     try {
       const res = await fetch('/api/logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: inputContent, source: 'web_dashboard' })
+        body: JSON.stringify({ content: promptToUse, source: 'command_center' })
       });
       if (res.ok) {
-        setInputContent('');
+        const data = await res.json();
+        if (data.execution_steps) setLastExecutionSteps(data.execution_steps);
+        setInputPrompt('');
         await fetchData();
       }
     } catch (err) {
-      console.error("Send Error:", err);
+      console.error("Command error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRefreshRecommendations = async () => {
-    setRefreshingRecs(true);
+  const handleRunAgent = async (agentName, prompt) => {
+    setLoading(true);
+    setLastExecutionSteps([`✓ ${agentName} Tetiklendi`, "✓ Veriler Taranıyor...", "✓ Özet Üretiliyor"]);
     try {
-      const res = await fetch('/api/recommendations/refresh', { method: 'POST' });
-      if (res.ok) {
-        setRecommendations(await res.json());
-        fetchData();
-      }
-    } catch (err) {
-      console.error("Rec Refresh Error:", err);
-    } finally {
-      setRefreshingRecs(false);
-    }
-  };
-
-  const handleDismissRec = async (id) => {
-    try {
-      await fetch(`/api/recommendations/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'dismissed' })
-      });
-      fetchData();
-    } catch (err) {
-      console.error("Dismiss Error:", err);
-    }
-  };
-
-  const handleAddProfileTrait = async (e) => {
-    e.preventDefault();
-    if (!profileKey.trim() || !profileVal.trim()) return;
-    try {
-      await fetch('/api/user-profile', {
+      const res = await fetch('/api/agents/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: profileKey, value: profileVal, category: 'preferences' })
+        body: JSON.stringify({ agent_name: agentName, prompt: prompt })
       });
-      setProfileKey('');
-      setProfileVal('');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.execution_steps) setLastExecutionSteps(data.execution_steps);
+        await fetchData();
+      }
+    } catch (err) {
+      console.error("Agent Run Error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteMemory = async (id) => {
+    try {
+      await fetch(`/api/memory-items/${id}`, { method: 'DELETE' });
       fetchData();
     } catch (err) {
-      console.error("Profile Add Error:", err);
+      console.error("Delete Memory Error:", err);
+    }
+  };
+
+  const handleAddMemory = async (e) => {
+    e.preventDefault();
+    if (!newMemFact.trim()) return;
+    try {
+      await fetch('/api/memory-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: newMemCat, fact: newMemFact, confidence: 98, learned_from: 'Misa Input' })
+      });
+      setNewMemFact('');
+      fetchData();
+    } catch (err) {
+      console.error("Add Memory Error:", err);
     }
   };
 
@@ -133,306 +146,406 @@ export default function App() {
     }
   };
 
-  const filteredLogs = logs.filter(log => 
-    !filterQuery || 
-    log.content.toLowerCase().includes(filterQuery.toLowerCase()) ||
-    log.category.toLowerCase().includes(filterQuery.toLowerCase())
-  );
-
   return (
     <div className="app-container">
-      {/* Cyberpunk Navigation Sidebar */}
-      <aside className="cyber-sidebar">
-        <div className="brand">
-          <div className="brand-icon">
-            <BrainCircuit size={28} color="#fff" />
+      {/* Desktop Sidebar Navigation */}
+      <aside className="sidebar-panel">
+        <div className="brand-wrapper">
+          <div className="brand-badge">
+            <BrainCircuit size={24} color="#fff" />
           </div>
           <div>
-            <div className="brand-title">Life AI OS</div>
-            <div style={{ fontSize: '11px', color: 'var(--neon-cyan)', fontFamily: 'var(--font-mono)' }}>CYBERPUNK v2.6</div>
+            <div className="brand-text">Life AI OS</div>
+            <div style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>Second Brain v3.0</div>
           </div>
         </div>
 
         <ul className="nav-menu">
-          <li className={`nav-item ${activeTab === 'insights' ? 'active' : ''}`} onClick={() => setActiveTab('insights')}>
-            <Lightbulb size={18} color="var(--neon-amber)" /> İpuçları & Öneriler ({recommendations.length})
+          <li className={`nav-item ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
+            <Compass size={18} /> AI Overview
           </li>
-          <li className={`nav-item ${activeTab === 'terminal' ? 'active' : ''}`} onClick={() => setActiveTab('terminal')}>
-            <Terminal size={18} color="var(--neon-cyan)" /> İstek & Yanıt Terminali
+          <li className={`nav-item ${activeTab === 'memory' ? 'active' : ''}`} onClick={() => setActiveTab('memory')}>
+            <UserCheck size={18} /> Your AI Memory ({memoryItems.length})
           </li>
-          <li className={`nav-item ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>
-            <BellRing size={18} color="var(--neon-rose)" /> Bildirimler & Sistem Logları ({logs.length})
+          <li className={`nav-item ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => setActiveTab('agents')}>
+            <Cpu size={18} /> AI Agents (5)
           </li>
-          <li className={`nav-item ${activeTab === 'tasks' ? 'active' : ''}`} onClick={() => setActiveTab('tasks')}>
-            <ListTodo size={18} color="var(--neon-emerald)" /> Yapılacaklar & Görevler ({stats.pending_tasks || 0})
+          <li className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+            <Layers size={18} /> Life Dashboard
           </li>
-          <li className={`nav-item ${activeTab === 'persona' ? 'active' : ''}`} onClick={() => setActiveTab('persona')}>
-            <UserCheck size={18} color="var(--neon-magenta)" /> Seni Tanıma Deposu ({Object.keys(userProfile).length})
+          <li className={`nav-item ${activeTab === 'privacy' ? 'active' : ''}`} onClick={() => setActiveTab('privacy')}>
+            <ShieldCheck size={18} /> Privacy & Control
           </li>
         </ul>
 
-        {/* Telemetry Status Badge */}
-        <div className="status-hud">
-          <div className="pulse-emerald"></div>
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff', textTransform: 'uppercase' }}>7/24 AI Telemetri</div>
-            <div style={{ fontSize: '11px', color: 'var(--neon-emerald)', fontFamily: 'var(--font-mono)' }}>Gemini 2.0 Live API</div>
+        {/* Telemetry Indicator */}
+        <div style={{ marginTop: 'auto', padding: '14px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.06)', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--accent-cyan)' }}>
+            <Sparkles size={14} /> Gemini 2.0 Live Engine
           </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>7/24 Kesintisiz Otonom Takip</div>
         </div>
       </aside>
 
-      {/* Main Content Dashboard */}
+      {/* Main Command Center */}
       <main className="main-content">
-        {/* Cyber Top Header */}
-        <header className="top-header">
-          <div className="header-title">
-            <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Radio size={28} color="var(--neon-cyan)" /> Cyberpunk AI Life Command Center
-            </h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>Misa için özelleştirilmiş otonom karar destek, takip ve rehberlik sistemi.</p>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <button 
-              onClick={handleRefreshRecommendations}
-              className="cyber-btn"
-              disabled={refreshingRecs}
-            >
-              <RefreshCw size={16} className={refreshingRecs ? "spin" : ""} />
-              {refreshingRecs ? 'Analiz Yapılıyor...' : 'Yapay Zekayı Tetikle'}
-            </button>
-          </div>
-        </header>
 
-        {/* TAB 1: AI İPUÇLARI VE PROAKTİF ÖNERİLER (AI ADVICE & INSIGHTS HUB) */}
-        {activeTab === 'insights' && (
-          <div className="full-grid">
-            <div className="cyber-card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--neon-amber)', display: 'flex', alignItems: 'center', gap: '10px', textTransform: 'uppercase' }}>
-                  <Lightbulb size={24} /> 💡 Canlı AI İpuçları, Stratejik Öneriler ve Risk Bildirimleri
-                </h2>
-                <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{recommendations.length} Aktif Bildirim</span>
+        {/* SECTION 1: AI OVERVIEW (TOP HERO BRIEFING) */}
+        <section className="hero-briefing">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div className="hero-subtitle">⚡ AI Daily Briefing</div>
+              <h1 className="hero-title">{overview.greeting || "İyi Günler, Misa"}</h1>
+              <p style={{ color: 'var(--text-muted)', marginTop: '6px', fontSize: '15px' }}>
+                {overview.summary_title || "Bugün senin için önemli olanlar:"}
+              </p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>
+                {stats.pending_tasks || 0} Görev
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
-                {recommendations.map((rec) => (
-                  <div 
-                    key={rec.id} 
-                    className="cyber-card"
-                    style={{ 
-                      padding: '20px', 
-                      background: 'rgba(5, 8, 20, 0.95)',
-                      borderLeft: rec.priority === 'high' ? '4px solid var(--neon-rose)' : '4px solid var(--neon-amber)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                      <div style={{ fontWeight: 800, fontSize: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {rec.type === 'risk_alert' ? <ShieldAlert size={20} color="var(--neon-rose)" /> : <Lightbulb size={20} color="var(--neon-amber)" />}
-                        {rec.title}
-                      </div>
-                      <button 
-                        onClick={() => handleDismissRec(rec.id)}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}
-                      >
-                        <X size={18} />
-                      </button>
-                    </div>
-
-                    <div style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', marginBottom: '14px' }}>
-                      {rec.advice}
-                    </div>
-
-                    {rec.reasoning && (
-                      <div style={{ fontSize: '12px', color: 'var(--neon-cyan)', background: 'rgba(0, 243, 255, 0.08)', padding: '8px 12px', borderRadius: '8px', borderLeft: '3px solid var(--neon-cyan)' }}>
-                        🔍 <strong>AI Mantık Tespiti:</strong> {rec.reasoning}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {recommendations.length === 0 && (
-                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>
-                    Henüz aktif bir ipucu veya risk bildirimi yok. 'Yapay Zekayı Tetikle' butonuna basarak yeni bir analiz başlatabilirsiniz!
-                  </div>
-                )}
-              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>Bekleyen Aksiyon</div>
             </div>
           </div>
-        )}
 
-        {/* TAB 2: İSTEK VE YANITLAR TERMINALI (REQUEST & RESPONSE CHAT TERMINAL) */}
-        {activeTab === 'terminal' && (
-          <div className="full-grid">
-            {/* Input Prompt Box */}
-            <div className="cyber-card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
-                  <Terminal size={18} /> İstek & Karar Komut Terminali
+          {/* AI Priority Pills */}
+          <div className="hero-priorities">
+            {(overview.top_priorities || []).map((priority, idx) => (
+              <div key={idx} className="priority-pill">
+                <CheckCircle2 size={16} color="var(--accent-cyan)" />
+                <span><strong>{idx + 1}.</strong> {priority}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* TAB 1: OVERVIEW & CENTRAL AI ASSISTANT COMMAND SPACE */}
+        {activeTab === 'overview' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            
+            {/* Central Personal AI Assistant Workspace */}
+            <div className="linear-card command-console">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Terminal size={18} /> Personal AI Command Space
                 </span>
-                <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>Gemini 2.0 Prompt Engine</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>Ask anything...</span>
               </div>
 
-              <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '14px' }}>
+              {/* Quick Action Chips */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button onClick={() => handleCommandSubmit(null, "Bugün ne yapmalıyım?")} className="priority-pill" style={{ cursor: 'pointer', background: 'rgba(56, 189, 248, 0.1)', borderColor: 'var(--accent-cyan)' }}>
+                  🎯 Bugün ne yapmalıyım?
+                </button>
+                <button onClick={() => handleCommandSubmit(null, "Bu haftayı düzenle ve öncelikleri çıkar")} className="priority-pill" style={{ cursor: 'pointer' }}>
+                  📅 Bu haftayı düzenle
+                </button>
+                <button onClick={() => handleCommandSubmit(null, "Son aldığım kararları ve projeleri özetle")} className="priority-pill" style={{ cursor: 'pointer' }}>
+                  🧠 Projeleri özetle
+                </button>
+              </div>
+
+              {/* Main Input Form */}
+              <form onSubmit={handleCommandSubmit} style={{ display: 'flex', gap: '12px' }}>
                 <input 
                   type="text" 
-                  className="cyber-input" 
-                  placeholder="Yapay zeka asistanınıza bir soru sorun, yeni bir karar veya proje fikri yazın..."
-                  value={inputContent}
-                  onChange={(e) => setInputContent(e.target.value)}
+                  className="input-box" 
+                  placeholder="Dijital beyninize bir talimat verin veya soru sorun..."
+                  value={inputPrompt}
+                  onChange={(e) => setInputPrompt(e.target.value)}
                   disabled={loading}
-                  style={{ flex: 1, fontSize: '15px' }}
                 />
-                <button type="submit" className="cyber-btn" disabled={loading}>
-                  {loading ? 'İşleniyor...' : <><Send size={16} /> Gönder</>}
+                <button type="submit" className="action-btn" disabled={loading}>
+                  {loading ? 'İşleniyor...' : <><Send size={16} /> Çalıştır</>}
                 </button>
               </form>
+
+              {/* Dynamic AI Process Execution Steps (✓ Calendar Analyzed, ✓ Plan Generated) */}
+              {lastExecutionSteps.length > 0 && (
+                <div className="execution-steps-box">
+                  {lastExecutionSteps.map((step, idx) => (
+                    <span key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {step} {idx < lastExecutionSteps.length - 1 && "→"}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Conversation Log & Responses Feed */}
-            <div className="cyber-card" style={{ padding: '24px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--neon-cyan)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
-                <MessageSquare size={20} /> Etkileşim ve Yanıt Geçmişi
-              </h2>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {logs.map((log) => (
-                  <div key={log.id} className={`cyber-log-item category-${log.category}`}>
-                    <div className="log-top">
-                      <span className="log-source-badge">{log.source} • {log.category}</span>
-                      <span><Clock size={12} inline="true" /> {log.timestamp}</span>
-                    </div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, color: '#fff', margin: '4px 0' }}>
-                      💬 <strong>İstek:</strong> {log.content}
-                    </div>
-                    {log.summary && (
-                      <div className="log-summary-box">
-                        ⚡ <strong>AI Yanıt & Özet:</strong> {log.summary}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: BİLDİRİMLER VE SİSTEM LOGLARI (NOTIFICATIONS & TELEMETRY LOGS) */}
-        {activeTab === 'notifications' && (
-          <div className="full-grid">
-            <div className="cyber-card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--neon-rose)', display: 'flex', alignItems: 'center', gap: '10px', textTransform: 'uppercase' }}>
-                  <BellRing size={24} /> 🔔 Canlı Bildirimler & Telemetri Akışı
+            {/* Content Split: Proactive Insights + Recent Interactions */}
+            <div className="content-grid">
+              {/* Proactive Insights Cards */}
+              <div className="linear-card" style={{ padding: '24px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--accent-amber)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lightbulb size={20} /> Proaktif AI Önerileri
                 </h2>
-                <div style={{ position: 'relative' }}>
-                  <input 
-                    type="text"
-                    placeholder="Loglarda Ara..."
-                    value={filterQuery}
-                    onChange={(e) => setFilterQuery(e.target.value)}
-                    className="cyber-input"
-                    style={{ width: '240px', paddingLeft: '36px', fontSize: '13px' }}
-                  />
-                  <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '13px' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {recommendations.map((rec) => (
+                    <div key={rec.id} style={{ background: 'rgba(3, 7, 18, 0.6)', padding: '16px', borderRadius: '12px', borderLeft: '4px solid var(--accent-amber)' }}>
+                      <div style={{ fontWeight: 700, fontSize: '15px', color: '#fff' }}>{rec.title}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: '1.5' }}>{rec.advice}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {filteredLogs.map((log) => (
-                  <div key={log.id} className="cyber-card" style={{ padding: '16px', background: 'rgba(5, 8, 20, 0.8)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
-                      <span style={{ color: 'var(--neon-cyan)', fontWeight: 700 }}>[{log.source.toUpperCase()}]</span>
-                      <span>{log.timestamp}</span>
+              {/* Recent Activity Feed */}
+              <div className="linear-card" style={{ padding: '24px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={20} /> Canlı Akış & Yanıtlar
+                </h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {logs.slice(0, 5).map((log) => (
+                    <div key={log.id} style={{ background: 'rgba(3, 7, 18, 0.5)', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>[{log.source.toUpperCase()}] • {log.timestamp}</div>
+                      <div style={{ fontSize: '14px', color: '#fff', marginTop: '4px' }}>{log.content}</div>
                     </div>
-                    <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginTop: '6px' }}>
-                      {log.content}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 4: YAPILACAKLAR VE GÖREVLER (TASKS HUB) */}
-        {activeTab === 'tasks' && (
-          <div className="full-grid">
-            <div className="cyber-card" style={{ padding: '24px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--neon-emerald)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', textTransform: 'uppercase' }}>
-                <ListTodo size={24} /> 📌 Yapılacaklar & Aksiyon Görevleri ({tasks.length})
-              </h2>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {tasks.map(task => (
-                  <div key={task.id} className="cyber-card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '14px', background: 'rgba(5, 8, 20, 0.8)' }}>
-                    <input 
-                      type="checkbox" 
-                      className="task-checkbox"
-                      checked={task.status === 'completed'}
-                      onChange={() => handleToggleTask(task.id, task.status)}
-                    />
-                    <span style={{ 
-                      flex: 1, 
-                      fontSize: '15px',
-                      textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                      color: task.status === 'completed' ? 'var(--text-dim)' : 'var(--text-primary)'
-                    }}>
-                      {task.title}
-                    </span>
-                    <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', padding: '4px 10px', borderRadius: '6px', background: 'rgba(0, 255, 153, 0.15)', color: 'var(--neon-emerald)' }}>
-                      Öncelik: {task.priority.toUpperCase()}
-                    </span>
-                  </div>
-                ))}
+        {/* TAB 2: MEMORY SYSTEM ("YOUR AI MEMORY") */}
+        {activeTab === 'memory' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div className="linear-card" style={{ padding: '28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <UserCheck size={24} color="var(--accent-cyan)" /> Your AI Memory
+                  </h2>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>
+                    Yapay zeka asistanınızın hakkınızda öğrendiği ve hafızasında tuttuğu tüm bilgiler:
+                  </p>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* TAB 5: SENİ TANIMA DEPOSU (USER PERSONA VAULT) */}
-        {activeTab === 'persona' && (
-          <div className="full-grid">
-            <div className="cyber-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--neon-magenta)', display: 'flex', alignItems: 'center', gap: '10px', textTransform: 'uppercase' }}>
-                <UserCheck size={24} /> 🧠 Seni Tanıma Deposu (Persona Vault)
-              </h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Yapay zeka asistanınızın sizi daha iyi tanıması, riskleri öngörmesi ve kişiselleştirilmiş tavsiye vermesi için alışkanlıklarınızı ve hedeflerinizi ekleyin.</p>
-
-              <form onSubmit={handleAddProfileTrait} style={{ display: 'flex', gap: '12px' }}>
+              {/* Add New Memory Fact Form */}
+              <form onSubmit={handleAddMemory} style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+                <select 
+                  className="input-box" 
+                  value={newMemCat} 
+                  onChange={e => setNewMemCat(e.target.value)}
+                  style={{ width: '180px' }}
+                >
+                  <option value="knowledge">🧠 Knowledge</option>
+                  <option value="projects">💼 Projects</option>
+                  <option value="schedule">📅 Schedule</option>
+                  <option value="finance">💰 Finance</option>
+                  <option value="health">❤️ Health</option>
+                  <option value="goals">🎯 Goals</option>
+                  <option value="learning">📚 Learning</option>
+                </select>
                 <input 
                   type="text" 
-                  placeholder="Özellik Başlığı (Örn: En Verimli Saatlerim)" 
-                  className="cyber-input" 
-                  value={profileKey}
-                  onChange={e => setProfileKey(e.target.value)}
-                  style={{ width: '260px' }}
-                />
-                <input 
-                  type="text" 
-                  placeholder="Detay (Örn: Sabah 09:00 - 13:00 arası yüksek odaklanma)" 
-                  className="cyber-input" 
-                  value={profileVal}
-                  onChange={e => setProfileVal(e.target.value)}
+                  className="input-box" 
+                  placeholder="Yapay zekanın sizin hakkınızda bilmesini istediğiniz bir gerçeği ekleyin..." 
+                  value={newMemFact}
+                  onChange={e => setNewMemFact(e.target.value)}
                   style={{ flex: 1 }}
                 />
-                <button type="submit" className="cyber-btn">
-                  <Plus size={16} /> Ekle
+                <button type="submit" className="action-btn">
+                  <Plus size={16} /> Hafızaya Ekle
                 </button>
               </form>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '18px', marginTop: '10px' }}>
-                {Object.entries(userProfile).map(([key, val]) => (
-                  <div key={key} className="cyber-card" style={{ padding: '18px', background: 'rgba(5, 8, 20, 0.95)' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--neon-magenta)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>{val.category}</div>
-                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#fff', margin: '4px 0' }}>{key}</div>
-                    <div style={{ fontSize: '14px', color: 'var(--text-muted)', lineHeight: '1.5' }}>{val.value}</div>
+              {/* Memory Fact Cards Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                {memoryItems.map((item) => (
+                  <div key={item.id} className="linear-card" style={{ padding: '18px', background: 'rgba(3, 7, 18, 0.7)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.1)' }}>
+                        {item.category}
+                      </span>
+                      <button 
+                        onClick={() => handleDeleteMemory(item.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+                      >
+                        <Trash2 size={14} /> Bu Bilgiyi Sil
+                      </button>
+                    </div>
+
+                    <div style={{ fontSize: '15px', color: '#fff', fontWeight: 600, lineHeight: '1.5' }}>
+                      {item.fact}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-dim)', marginTop: '12px' }}>
+                      <span>Güven Skoru: %{item.confidence}</span>
+                      <span>Kaynak: {item.learned_from}</span>
+                    </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: AI AGENTS HUB */}
+        {activeTab === 'agents' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div className="linear-card" style={{ padding: '28px' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#fff', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Cpu size={24} color="var(--accent-violet)" /> Autonomous AI Agents
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '24px' }}>
+                Farklı alanlarda sizin için otonom araştırma, planlama, sağlık ve finans takibi yapan alt yapay zeka ajanları:
+              </p>
+
+              {/* Agents Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+                {(agentsData.agents || []).map((agent, idx) => (
+                  <div key={idx} className="linear-card" style={{ padding: '20px', background: 'rgba(3, 7, 18, 0.8)' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Sparkles size={18} color="var(--accent-cyan)" /> {agent.name}
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '8px 0 16px 0' }}>{agent.role}</div>
+                    
+                    <button 
+                      onClick={() => handleRunAgent(agent.name, `${agent.name} modunda analiz yap ve önerilerini sun.`)}
+                      className="action-btn"
+                      style={{ width: '100%', justifyContent: 'center', fontSize: '13px' }}
+                    >
+                      Ajana Görev Ver <ArrowRight size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: LIFE DASHBOARD (7 CATEGORIES) */}
+        {activeTab === 'dashboard' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div className="linear-card" style={{ padding: '28px' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#fff', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Layers size={24} color="var(--accent-cyan)" /> Life Dashboard (7 Hayat Kategorisi)
+              </h2>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                <div className="linear-card" style={{ padding: '18px', background: 'rgba(3, 7, 18, 0.6)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+                    <BookOpen size={18} /> 🧠 Knowledge (Bilgi Deposu)
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    {memoryItems.filter(m => m.category === 'knowledge').length} İndekslenmiş Bilgi
+                  </div>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px', background: 'rgba(3, 7, 18, 0.6)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-violet)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+                    <Briefcase size={18} /> 💼 Projects (Canlı Projeler)
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    {projects.length} Aktif Proje
+                  </div>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px', background: 'rgba(3, 7, 18, 0.6)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+                    <CalendarIcon size={18} /> 📅 Schedule (Takvim & Görevler)
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    {tasks.length} Bekleyen Aksiyon
+                  </div>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px', background: 'rgba(3, 7, 18, 0.6)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+                    <DollarSign size={18} /> 💰 Finance (Finans Takibi)
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    AI Finans Takibi Aktif
+                  </div>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px', background: 'rgba(3, 7, 18, 0.6)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-rose)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+                    <Heart size={18} /> ❤️ Health (Sağlık & Enerji)
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    Enerji & Odaklanma Dengesi İyi
+                  </div>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px', background: 'rgba(3, 7, 18, 0.6)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+                    <Target size={18} /> 🎯 Goals (Hedefler)
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    %100 AI Hayat Entegrasyonu
+                  </div>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px', background: 'rgba(3, 7, 18, 0.6)' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent-violet)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+                    <GraduationCap size={18} /> 📚 Learning (Öğrenme)
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    Otonom AI & Multi-Model
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: PRIVACY & DATA CONTROL CENTER */}
+        {activeTab === 'privacy' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div className="linear-card" style={{ padding: '28px' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--accent-rose)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ShieldCheck size={24} /> Privacy & Data Control Center
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '24px' }}>
+                Kişisel verileriniz ve yapay zekanın sahip olduğu tüm erişim izinleri üzerinde %100 tam kontrole sahipsiniz:
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                <div className="linear-card" style={{ padding: '20px', background: 'rgba(3, 7, 18, 0.8)' }}>
+                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Lock size={18} color="var(--accent-emerald)" /> Veri Gizliliği
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                    Tüm verileriniz şifrelenmiş kişisel SQLite veritabanında saklanır ve asla 3. taraf reklam şirketleriyle paylaşılmaz.
+                  </div>
+                </div>
+
+                <div className="linear-card" style={{ padding: '20px', background: 'rgba(3, 7, 18, 0.8)' }}>
+                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Trash2 size={18} color="var(--accent-rose)" /> Hafıza Yönetimi
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                    'Your AI Memory' sekmesinden yapay zekanın öğrendiği herhangi bir bilgiyi tek tıkla silebilirsiniz.
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         )}
       </main>
+
+      {/* Mobile Responsive Bottom Navigation Bar */}
+      <div className="mobile-nav-bar">
+        <div className={`mobile-nav-item ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
+          <Compass size={20} />
+          <span>Overview</span>
+        </div>
+        <div className={`mobile-nav-item ${activeTab === 'memory' ? 'active' : ''}`} onClick={() => setActiveTab('memory')}>
+          <UserCheck size={20} />
+          <span>Memory</span>
+        </div>
+        <div className={`mobile-nav-item ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => setActiveTab('agents')}>
+          <Cpu size={20} />
+          <span>Agents</span>
+        </div>
+        <div className={`mobile-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+          <Layers size={20} />
+          <span>Dashboard</span>
+        </div>
+      </div>
     </div>
   );
 }

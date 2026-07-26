@@ -38,7 +38,7 @@ class MemoryEngine:
                 )
             ''')
 
-            # Active Tasks & Habits
+            # Tasks table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS tasks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +51,7 @@ class MemoryEngine:
                 )
             ''')
 
-            # Active Projects
+            # Projects table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS projects (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,11 +59,12 @@ class MemoryEngine:
                     description TEXT,
                     status TEXT DEFAULT 'active', -- 'active', 'paused', 'completed'
                     progress INTEGER DEFAULT 0,  -- 0 to 100
+                    category TEXT DEFAULT 'Projects',
                     last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
 
-            # User Persona & Deep Profile Memory
+            # User Persona & Profile Memory
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS user_profile (
                     key TEXT PRIMARY KEY,
@@ -73,7 +74,31 @@ class MemoryEngine:
                 )
             ''')
 
-            # Proactive AI Recommendations & Life Coach Advice
+            # Explicit Memory Items ("What AI Knows About You")
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS memory_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category TEXT, -- 'knowledge', 'projects', 'schedule', 'finance', 'health', 'goals', 'learning'
+                    fact TEXT NOT NULL,
+                    confidence INTEGER DEFAULT 95,
+                    learned_from TEXT DEFAULT 'AI Interaction',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # AI Agent Executions Log (Execution steps: ✓ Calendar Analyzed, ✓ Plan Generated)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS agent_executions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    agent_name TEXT, -- 'Research Agent', 'Planning Agent', 'Health Agent', 'Finance Agent', 'Learning Agent'
+                    user_prompt TEXT,
+                    steps TEXT,      -- JSON array of steps: ['✓ Calendar Analyzed', '✓ Priorities Ranked']
+                    result_output TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # Proactive Recommendations
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS proactive_recommendations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,50 +114,103 @@ class MemoryEngine:
 
             conn.commit()
 
-            # Auto-seed baseline Misa profile if database is newly created
-            cursor.execute("SELECT COUNT(*) as cnt FROM user_profile")
+            # Seed initial memory items if empty
+            cursor.execute("SELECT COUNT(*) as cnt FROM memory_items")
             row = cursor.fetchone()
             if row and row["cnt"] == 0:
-                print("[MemoryEngine] Seeding initial Misa baseline profile...")
-                profile_items = [
-                    ("Kullanıcı Adı", "Misa", "personal"),
-                    ("Konum", "Eskişehir, Türkiye", "personal"),
-                    ("Ana Hedef", "Tüm hayatımı, projelerimi, aramalarımı ve günlük işlerimi %100 AI ile canlı entegre etmek.", "goals"),
-                    ("İletişim & Çalışma Tarzı", "Direkt, net, laf kalabalığı olmayan, risk ve fırsat odaklı proaktif rehberlik.", "preferences"),
-                    ("Geliştirme Ortamı", "Python, Node.js, React, Docker, Antigravity IDE", "tech_stack")
-                ]
-                for key, val, cat in profile_items:
-                    cursor.execute('''
-                        INSERT INTO user_profile (key, value, category, updated_at)
-                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                    ''', (key, val, cat))
-
-                starter_tasks = [
-                    ("Telegram Botu (@Misanaibibot) üzerinden ilk mesajı gönder", "high", "onboarding"),
-                    ("Yapay zeka asistanına günün 1 ana hedefini söyle", "medium", "daily")
-                ]
-                for title, prio, cat in starter_tasks:
-                    cursor.execute('''
-                        INSERT INTO tasks (title, priority, category, status, created_at)
-                        VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP)
-                    ''', (title, prio, cat))
-
-                starter_recs = [
-                    ("strategic", "⚡ Canlı AI Hayat Entegrasyonu Bulutta Aktif!", "Misa, sisteminiz Render üzerinde 7/24 canlı takip modunda. @Misanaibibot üzerinden veya buradaki giriş kutusundan aklınıza gelen herhangi bir fikri paylaşabilirsiniz.", "Bulut başlangıç kurulumu yapıldı.", "high"),
-                    ("energy_coach", "🧠 Günlük AI Koçluk İpucu", "Yapay zeka sizi tanıdıkça proaktif uyarılar keskinleşecek. Bugün en kritik işinize odaklanın.", "Kişisel profil analizi.", "medium")
-                ]
-                for rec_type, title, advice, reasoning, priority in starter_recs:
-                    cursor.execute('''
-                        INSERT INTO proactive_recommendations (type, title, advice, reasoning, priority, status)
-                        VALUES (?, ?, ?, ?, ?, 'active')
-                    ''', (rec_type, title, advice, reasoning, priority))
-
-                cursor.execute('''
-                    INSERT INTO timeline_logs (source, category, content, summary, tags)
-                    VALUES ('system', 'personal', 'Life AI OS Render bulut sunucusunda başlatıldı. Misa kişisel profili aktif.', 'Bulut sistem kurulumu yapıldı.', '["sistem", "render"]')
-                ''')
+                self._seed_initial_memory_items(cursor)
                 conn.commit()
 
+    def _seed_initial_memory_items(self, cursor):
+        initial_facts = [
+            ("goals", "Misa, tüm dijital hayatını %100 AI ile canlı entegre etmek istiyor.", 99, "Profil"),
+            ("preferences", "Sıfır laf kalabalığı, direkt net tavsiyeler ve proaktif yönlendirme tercih ediyor.", 95, "Profil"),
+            ("tech_stack", "Python, Node.js, React, Docker, Antigravity IDE ile yazılım geliştiriyor.", 95, "Geliştirme Ortamı"),
+            ("health", "Uzun saatler aralıksız çalışma eğiliminde. Mola ve odaklanma dengesi takibi yapılıyor.", 90, "Sağlık Analizi"),
+            ("learning", "Geleceğin otonom AI sistemleri ve çoklu model mimarileri üzerine araştırmalar yapıyor.", 92, "Öğrenme")
+        ]
+        for cat, fact, conf, learned in initial_facts:
+            cursor.execute('''
+                INSERT INTO memory_items (category, fact, confidence, learned_from)
+                VALUES (?, ?, ?, ?)
+            ''', (cat, fact, conf, learned))
+
+    def get_memory_items(self):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM memory_items ORDER BY created_at DESC')
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"[MemoryEngine Error - get_memory_items]: {e}")
+            return []
+
+    def add_memory_item(self, category: str, fact: str, confidence: int = 95, learned_from: str = "AI Interaction"):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO memory_items (category, fact, confidence, learned_from)
+                    VALUES (?, ?, ?, ?)
+                ''', (category, fact, confidence, learned_from))
+                conn.commit()
+                return cursor.lastrowid
+        except Exception as e:
+            print(f"[MemoryEngine Error - add_memory_item]: {e}")
+            return 0
+
+    def delete_memory_item(self, item_id: int):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM memory_items WHERE id = ?', (item_id,))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"[MemoryEngine Error - delete_memory_item]: {e}")
+            return False
+
+    def add_agent_execution(self, agent_name: str, user_prompt: str, steps: list, result_output: str):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO agent_executions (agent_name, user_prompt, steps, result_output)
+                    VALUES (?, ?, ?, ?)
+                ''', (agent_name, user_prompt, json.dumps(steps or []), result_output))
+                conn.commit()
+                return cursor.lastrowid
+        except Exception as e:
+            print(f"[MemoryEngine Error - add_agent_execution]: {e}")
+            return 0
+
+    def get_agent_executions(self, limit: int = 20):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM agent_executions ORDER BY created_at DESC LIMIT ?', (limit,))
+                rows = cursor.fetchall()
+                results = []
+                for row in rows:
+                    steps = []
+                    try:
+                        steps = json.loads(row["steps"] or "[]")
+                    except Exception:
+                        pass
+                    results.append({
+                        "id": row["id"],
+                        "agent_name": row["agent_name"],
+                        "user_prompt": row["user_prompt"],
+                        "steps": steps,
+                        "result_output": row["result_output"],
+                        "created_at": row["created_at"]
+                    })
+                return results
+        except Exception as e:
+            print(f"[MemoryEngine Error - get_agent_executions]: {e}")
+            return []
+
+    # Timeline Logs
     def add_log(self, source: str, category: str, content: str, summary: str = "", tags: list = None, metadata: dict = None):
         try:
             with self._get_connection() as conn:
@@ -210,6 +288,7 @@ class MemoryEngine:
             print(f"[MemoryEngine Error - search_logs]: {e}")
             return []
 
+    # Tasks
     def add_task(self, title: str, priority: str = "medium", category: str = "general", due_date: str = None):
         try:
             with self._get_connection() as conn:
@@ -246,6 +325,7 @@ class MemoryEngine:
         except Exception as e:
             print(f"[MemoryEngine Error - update_task_status]: {e}")
 
+    # Projects
     def get_projects(self):
         try:
             with self._get_connection() as conn:
@@ -256,20 +336,21 @@ class MemoryEngine:
             print(f"[MemoryEngine Error - get_projects]: {e}")
             return []
 
-    def add_project(self, name: str, description: str, progress: int = 0):
+    def add_project(self, name: str, description: str, progress: int = 0, category: str = "Projects"):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT INTO projects (name, description, progress)
-                    VALUES (?, ?, ?)
-                ''', (name, description, progress))
+                    INSERT INTO projects (name, description, progress, category)
+                    VALUES (?, ?, ?, ?)
+                ''', (name, description, progress, category))
                 conn.commit()
                 return cursor.lastrowid
         except Exception as e:
             print(f"[MemoryEngine Error - add_project]: {e}")
             return 0
 
+    # User Profile
     def set_profile_item(self, key: str, value: str, category: str = "general"):
         try:
             with self._get_connection() as conn:
@@ -293,6 +374,7 @@ class MemoryEngine:
             print(f"[MemoryEngine Error - get_profile]: {e}")
             return {}
 
+    # Proactive Recommendations
     def add_recommendation(self, rec_type: str, title: str, advice: str, reasoning: str = "", priority: str = "medium"):
         try:
             with self._get_connection() as conn:
