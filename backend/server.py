@@ -1,18 +1,23 @@
+import os
 import sys
+import threading
+import time
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 
-sys.path.append(str(Path(__file__).resolve().parent))
+# Ensure backend directory is in sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from config import PORT, HOST, TELEGRAM_BOT_TOKEN
 from memory_engine import memory
 from agent_router import agent_router
 from proactive_advisor import proactive_advisor
-from connectors.audio_transcriber import audio_transcriber
+from connectors.telegram_bot import run_bot_polling
 
-app = FastAPI(title="Life AI OS Stable Backend", version="2.0.0")
+app = FastAPI(title="Life AI OS Production Backend", version="2.5.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,9 +48,26 @@ class ProfileUpdate(BaseModel):
 class RecStatusUpdate(BaseModel):
     status: str
 
+@app.on_event("startup")
+def startup_event():
+    token = os.getenv("TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN)
+    if token:
+        print(f"[Server Startup] Telegram Bot token algılandı. Arka plan polling başlatılıyor...")
+        t = threading.Thread(target=run_bot_polling, daemon=True)
+        t.start()
+
 @app.get("/")
 def read_root():
-    return {"status": "online", "system": "Life AI OS Stable Engine", "version": "2.0.0"}
+    return {
+        "status": "online", 
+        "system": "Life AI OS Production Engine", 
+        "version": "2.5.0",
+        "telegram_bot": "active" if os.getenv("TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN) else "missing_token"
+    }
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
 
 @app.get("/api/logs")
 def get_logs(limit: int = 50, query: Optional[str] = None):
@@ -130,4 +152,8 @@ def get_stats():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server:app", host="127.0.0.1", port=8008, reload=False)
+    # Bind dynamically to os.getenv("PORT") or fallback to config.PORT
+    target_port = int(os.getenv("PORT", PORT))
+    target_host = os.getenv("HOST", "0.0.0.0")
+    print(f"[Server Launch] Running on http://{target_host}:{target_port}")
+    uvicorn.run("server:app", host=target_host, port=target_port, reload=False)
