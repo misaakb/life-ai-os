@@ -24,14 +24,13 @@ export default function App() {
     {
       id: 'init-1',
       sender: 'ai',
-      text: 'Merhaba Misa, ikincil dijital beynine bağlandın. Bugün hedeflerini düzenlemek, ders programını planlamak veya bir araştırma yapmak için bana talimat verebilirsin.',
-      execution_steps: ['✓ Dijital İkinci Beyin Bağlandı', '✓ Hafıza Taranıyor']
+      text: 'İyi günler Misa. Dijital ikincil beynin aktif. Bugün planlama yapmak, konuları araştırmak veya hedeflerini gözden geçirmek için komut verebilirsin.',
+      execution_steps: ['✓ Hafıza Taranıyor', '✓ Dijital Beyin Senkronize']
     }
   ]);
-  const [lastExecutionSteps, setLastExecutionSteps] = useState([]);
   const [activeTab, setActiveTab] = useState('briefing'); // 'briefing', 'chat', 'memory', 'agents', 'dashboard', 'privacy'
 
-  // New & Editing Memory State
+  // Memory Form
   const [newMemFact, setNewMemFact] = useState('');
   const [newMemCat, setNewMemCat] = useState('🧠 İlgi Alanları');
   const [editingMemId, setEditingMemId] = useState(null);
@@ -84,14 +83,13 @@ export default function App() {
     const promptToUse = customPrompt || inputPrompt;
     if (!promptToUse.trim()) return;
 
-    // 1. Add User Message to Chat
+    // 1. Add User Message
     const userMsg = { id: Date.now().toString(), sender: 'user', text: promptToUse };
     setChatHistory(prev => [...prev, userMsg]);
     setInputPrompt('');
 
     // 2. Set AI Thinking State
     setIsThinking(true);
-    setLastExecutionSteps(["✓ İçerik Analiz Ediliyor...", "✓ Hafıza Taranıyor..."]);
 
     try {
       const res = await fetch('/api/logs', {
@@ -105,20 +103,18 @@ export default function App() {
         const aiMsg = {
           id: (Date.now() + 1).toString(),
           sender: 'ai',
-          text: data.reply || "Anlaşıldı, talebiniz ikincil dijital beyninize işlendi.",
-          execution_steps: data.execution_steps || ["✓ İçerik Analiz Edildi", "✓ Aksiyon Planı Hazırlandı"]
+          text: data.reply || "Anlaşıldı, isteğinizi ikincil dijital beyninize kaydettim.",
+          execution_steps: data.execution_steps || ["✓ Takvim Analiz Edildi", "✓ Aksiyon Planı Hazırlandı"]
         };
-        setLastExecutionSteps(data.execution_steps || []);
         setChatHistory(prev => [...prev, aiMsg]);
         await fetchData();
       }
     } catch (err) {
       console.error("Command error:", err);
-      // Fallback AI Message if error
       const fallbackMsg = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: `İsteğinizi aldım: '${promptToUse}'. İkincil beyniniz ilgili görevleri ve planı güncelledi.`,
+        text: `İsteğinizi aldım: '${promptToUse}'. İkincil beyniniz ilgili planı güncelledi.`,
         execution_steps: ["✓ İçerik Taranıyor", "✓ Plan Güncellendi"]
       };
       setChatHistory(prev => [...prev, fallbackMsg]);
@@ -127,10 +123,8 @@ export default function App() {
     }
   };
 
-  const handleRunAgent = async (agentName, promptText, agentSteps) => {
+  const handleRunAgent = async (agentName, promptText, steps) => {
     setIsThinking(true);
-    setLastExecutionSteps(agentSteps || ["✓ Agent Tetiklendi", "✓ Veriler Taranıyor..."]);
-
     const userMsg = { id: Date.now().toString(), sender: 'user', text: `[${agentName}]: ${promptText}` };
     setChatHistory(prev => [...prev, userMsg]);
 
@@ -146,9 +140,8 @@ export default function App() {
           id: (Date.now() + 1).toString(),
           sender: 'ai',
           text: data.reply,
-          execution_steps: data.execution_steps || agentSteps
+          execution_steps: data.execution_steps || steps
         };
-        setLastExecutionSteps(data.execution_steps || agentSteps);
         setChatHistory(prev => [...prev, aiMsg]);
         await fetchData();
       }
@@ -184,454 +177,236 @@ export default function App() {
     }
   };
 
-  const handleSaveEditMemory = async (id) => {
-    if (!editingMemText.trim()) return;
-    try {
-      await handleDeleteMemory(id);
-      await fetch('/api/memory-items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: '🧠 İlgi Alanları', fact: editingMemText, confidence: 95, learned_from: 'Düzenlendi' })
-      });
-      setEditingMemId(null);
-      setEditingMemText('');
-      fetchData();
-    } catch (err) {
-      console.error("Edit Memory Error:", err);
-    }
-  };
-
-  const handleToggleTask = async (taskId, currentStatus) => {
-    const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
-    try {
-      await fetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
-      fetchData();
-    } catch (err) {
-      console.error("Task Update Error:", err);
-    }
-  };
-
   return (
-    <div className="app-container">
-      {/* Desktop Vision Sidebar */}
-      <aside className="vision-sidebar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div className="brand-badge">
-            <BrainCircuit size={24} color="#fff" />
+    <div className="linear-app">
+      {/* Linear Style Sidebar */}
+      <aside className="linear-sidebar">
+        <div className="brand-section">
+          <div className="brand-logo">
+            <BrainCircuit size={20} color="#fff" />
           </div>
-          <div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '18px', color: '#fff' }}>Life AI OS</div>
-            <div style={{ fontSize: '10px', color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>VISION PRO v3.5</div>
-          </div>
+          <div className="brand-name">Life AI OS</div>
         </div>
 
-        <ul className="nav-menu">
-          <li className={`nav-item ${activeTab === 'briefing' ? 'active' : ''}`} onClick={() => setActiveTab('briefing')}>
-            <Compass size={18} /> Daily Briefing
+        <ul className="nav-group">
+          <li className={`nav-link ${activeTab === 'briefing' ? 'active' : ''}`} onClick={() => setActiveTab('briefing')}>
+            <Compass size={16} /> Daily Briefing
           </li>
-          <li className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
-            <MessageSquare size={18} /> AI Workspace & Chat
+          <li className={`nav-link ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
+            <MessageSquare size={16} /> AI Workspace & Chat
           </li>
-          <li className={`nav-item ${activeTab === 'memory' ? 'active' : ''}`} onClick={() => setActiveTab('memory')}>
-            <UserCheck size={18} /> AI Memory Center ({memoryItems.length})
+          <li className={`nav-link ${activeTab === 'memory' ? 'active' : ''}`} onClick={() => setActiveTab('memory')}>
+            <UserCheck size={16} /> AI Memory ({memoryItems.length})
           </li>
-          <li className={`nav-item ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => setActiveTab('agents')}>
-            <Cpu size={18} /> AI Agents Hub
+          <li className={`nav-link ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => setActiveTab('agents')}>
+            <Cpu size={16} /> AI Agents
           </li>
-          <li className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-            <Layers size={18} /> Life Dashboard
+          <li className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+            <Layers size={16} /> Life Dashboard
           </li>
-          <li className={`nav-item ${activeTab === 'privacy' ? 'active' : ''}`} onClick={() => setActiveTab('privacy')}>
-            <ShieldCheck size={18} /> Privacy Center
+          <li className={`nav-link ${activeTab === 'privacy' ? 'active' : ''}`} onClick={() => setActiveTab('privacy')}>
+            <ShieldCheck size={16} /> Privacy Center
           </li>
         </ul>
-
-        {/* Live Telemetry Indicator */}
-        <div style={{ marginTop: 'auto', padding: '12px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--accent-cyan)' }}>
-            <Sparkles size={14} /> Gemini 2.0 Live Engine
-          </div>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>7/24 Kesintisiz Otonom Takip</div>
-        </div>
       </aside>
 
-      {/* Main Workspace */}
-      <main className="main-content">
-
-        {/* SECTION 2: AI DAILY BRIEFING HERO (APPLE VISION PRO STYLE) */}
-        <section className="briefing-hero">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                ⚡ AI Daily Briefing
-              </div>
-              <h1 className="briefing-title" style={{ marginTop: '4px' }}>Good morning, Misa</h1>
-              <p style={{ color: 'var(--text-muted)', marginTop: '4px', fontSize: '15px' }}>
-                Bugün seni analiz ettim. 3 önemli konu var:
-              </p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>
-                {stats.pending_tasks || 0} Görev
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>Bekleyen Aksiyon</div>
-            </div>
+      {/* Main Container */}
+      <main className="linear-main">
+        {/* Top Telemetry Header */}
+        <header className="top-bar">
+          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-muted)' }}>
+            Digital Second Brain • <span style={{ color: '#fff' }}>Misa Workspace</span>
           </div>
-
-          {/* Structured AI Analysis Cards Grid */}
-          <div className="briefing-cards-grid">
-            <div className="briefing-card">
-              <div className="briefing-card-title">
-                <Target size={18} color="var(--accent-amber)" /> 1. 🎯 Tarih Çalışması
-              </div>
-              <div className="briefing-card-desc">
-                "Son çalışma düzenine göre bugün 90 dakika ayırmalısın."
-              </div>
-            </div>
-
-            <div className="briefing-card">
-              <div className="briefing-card-title">
-                <Car size={18} color="var(--accent-cyan)" /> 2. 🚗 Araç Araştırması
-              </div>
-              <div className="briefing-card-desc">
-                "Geçmiş tercihlerine göre Toyota Corolla seçeneklerini takip ediyorum."
-              </div>
-            </div>
-
-            <div className="briefing-card">
-              <div className="briefing-card-title">
-                <Cpu size={18} color="var(--accent-violet)" /> 3. 💻 Life AI OS
-              </div>
-              <div className="briefing-card-desc">
-                "Projende AI Memory sistemini geliştirmen gerekiyor."
-              </div>
-            </div>
+          <div className="telemetry-pill">
+            <Sparkles size={12} /> Live Sync Online
           </div>
-        </section>
+        </header>
 
-        {/* TAB 1: AI WORKSPACE & CHAT EXPERIENCE */}
-        {(activeTab === 'briefing' || activeTab === 'chat') && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            
-            {/* Interactive Chat Console */}
-            <div className="vision-card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Terminal size={18} /> AI Command Workspace & Chat
-                </span>
-                <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>Gemini 2.0 Streaming</span>
+        {/* Scrollable Workspace */}
+        <div className="workspace-scroll">
+          
+          {/* AI Daily Briefing Box */}
+          <section className="hero-box">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--cyan)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  ⚡ Daily Intelligence Summary
+                </div>
+                <h1 className="hero-header" style={{ marginTop: '4px' }}>Good morning, Misa</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '2px' }}>
+                  Bugün seni analiz ettim. 3 önemli konu var:
+                </p>
+              </div>
+            </div>
+
+            {/* Briefing Items Grid */}
+            <div className="briefing-grid">
+              <div className="briefing-item">
+                <div style={{ fontWeight: 700, fontSize: '14.5px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Target size={16} color="var(--amber)" /> 🎯 Tarih Çalışması
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: '1.5' }}>
+                  "Son çalışma düzenine göre bugün 90 dakika ayırmalısın."
+                </div>
               </div>
 
-              {/* Quick Action Prompt Buttons */}
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
-                <button onClick={() => handleCommandSubmit(null, "Bugün ne yapmalıyım?")} className="vision-card" style={{ padding: '8px 14px', fontSize: '13px', cursor: 'pointer', background: 'rgba(56, 189, 248, 0.1)', borderColor: 'var(--accent-cyan)', color: '#fff' }}>
+              <div className="briefing-item">
+                <div style={{ fontWeight: 700, fontSize: '14.5px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Car size={16} color="var(--cyan)" /> 🚗 Araç Araştırması
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: '1.5' }}>
+                  "Geçmiş tercihlerine göre Toyota Corolla seçeneklerini takip ediyorum."
+                </div>
+              </div>
+
+              <div className="briefing-item">
+                <div style={{ fontWeight: 700, fontSize: '14.5px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Cpu size={16} color="var(--violet)" /> 💻 Life AI OS
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: '1.5' }}>
+                  "Projende AI Memory sistemini geliştirmen gerekiyor."
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* TAB 1: AI WORKSPACE & CHAT EXPERIENCE */}
+          {(activeTab === 'briefing' || activeTab === 'chat') && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              {/* Raycast / Linear Floating Input Bar */}
+              <form onSubmit={handleCommandSubmit} className="command-bar">
+                <Terminal size={18} color="var(--cyan)" />
+                <input 
+                  type="text" 
+                  className="command-input" 
+                  placeholder="Yapay zeka asistanınıza bir soru sorun veya komut verin..." 
+                  value={inputPrompt}
+                  onChange={e => setInputPrompt(e.target.value)}
+                  disabled={isThinking}
+                />
+                <button type="submit" className="command-btn" disabled={isThinking}>
+                  {isThinking ? 'Düşünüyor...' : <><Send size={14} /> Gönder</>}
+                </button>
+              </form>
+
+              {/* Quick Action Chips */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button onClick={() => handleCommandSubmit(null, "Bugün ne yapmalıyım?")} className="linear-card" style={{ padding: '8px 14px', fontSize: '12.5px', cursor: 'pointer', color: '#fff', background: 'rgba(56, 189, 248, 0.1)', borderColor: 'var(--cyan)' }}>
                   🎯 Bugün ne yapmalıyım?
                 </button>
-                <button onClick={() => handleRunAgent("Planning Agent", "Haftamı düzenle", ["✓ Takvim analiz edildi", "✓ Öncelikler belirlendi", "✓ Plan oluşturuldu"])} className="vision-card" style={{ padding: '8px 14px', fontSize: '13px', cursor: 'pointer', color: '#fff' }}>
+                <button onClick={() => handleRunAgent("Planning Agent", "Haftamı düzenle", ["✓ Takvim analiz edildi", "✓ Öncelikler belirlendi", "✓ Plan oluşturuldu"])} className="linear-card" style={{ padding: '8px 14px', fontSize: '12.5px', cursor: 'pointer', color: '#fff' }}>
                   📅 Haftamı düzenle
                 </button>
-                <button onClick={() => handleRunAgent("Learning Agent", "Ders programı hazırla", ["✓ Geçmiş öğrenme verileri incelendi", "✓ Program oluşturuldu"])} className="vision-card" style={{ padding: '8px 14px', fontSize: '13px', cursor: 'pointer', color: '#fff' }}>
+                <button onClick={() => handleRunAgent("Learning Agent", "Ders programı hazırla", ["✓ Geçmiş öğrenme verileri incelendi", "✓ Program oluşturuldu"])} className="linear-card" style={{ padding: '8px 14px', fontSize: '12.5px', cursor: 'pointer', color: '#fff' }}>
                   📚 Ders programı hazırla
                 </button>
               </div>
 
-              {/* Chat Messages Timeline */}
-              <div className="chat-container">
-                {chatHistory.map((msg) => (
-                  <div key={msg.id} className={msg.sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}>
-                    <div>{msg.text}</div>
-                    
-                    {/* Execution Steps Visualization (✓ Calendar Analyzed, ✓ Priorities Ranked) */}
-                    {msg.execution_steps && msg.execution_steps.length > 0 && (
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)', background: 'rgba(56, 189, 248, 0.08)', padding: '6px 10px', borderRadius: '6px' }}>
-                        {msg.execution_steps.map((step, idx) => (
-                          <span key={idx}>{step}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              {/* Chat Timeline Feed */}
+              <div className="linear-card" style={{ padding: '20px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <MessageSquare size={18} color="var(--cyan)" /> AI Conversations & Actions
+                </h3>
 
-                {/* AI Thinking Animation */}
-                {isThinking && (
-                  <div className="chat-bubble-ai">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-cyan)', fontSize: '13.5px' }}>
-                      <BrainCircuit size={16} /> AI Düşünüyor & Hafızayı Tarıyor...
-                      <span className="thinking-dots">
-                        <span></span><span></span><span></span>
-                      </span>
+                <div className="chat-stream">
+                  {chatHistory.map((msg) => (
+                    <div key={msg.id} className={msg.sender === 'user' ? 'bubble-user' : 'bubble-ai'}>
+                      <div>{msg.text}</div>
+                      
+                      {msg.execution_steps && msg.execution_steps.length > 0 && (
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--cyan)', background: 'rgba(56, 189, 248, 0.08)', padding: '6px 10px', borderRadius: '6px' }}>
+                          {msg.execution_steps.map((step, idx) => (
+                            <span key={idx}>{step}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {lastExecutionSteps.length > 0 && (
-                      <div style={{ display: 'flex', gap: '8px', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                        {lastExecutionSteps.map((step, idx) => (
-                          <span key={idx}>{step}</span>
-                        ))}
+                  ))}
+
+                  {isThinking && (
+                    <div className="bubble-ai">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--cyan)' }}>
+                        <BrainCircuit size={16} /> AI Düşünüyor & Hafızayı Tarıyor...
                       </div>
-                    )}
-                  </div>
-                )}
-                <div ref={chatBottomRef} />
-              </div>
-
-              {/* Input Form */}
-              <form onSubmit={handleCommandSubmit} style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                <input 
-                  type="text" 
-                  className="vision-input" 
-                  placeholder="Yapay zeka asistanınıza komut verin..."
-                  value={inputPrompt}
-                  onChange={(e) => setInputPrompt(e.target.value)}
-                  disabled={isThinking}
-                />
-                <button type="submit" className="vision-btn" disabled={isThinking}>
-                  {isThinking ? 'Düşünüyor...' : <><Send size={16} /> Gönder</>}
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: ADVANCED MEMORY SYSTEM ("YOUR AI MEMORY") */}
-        {activeTab === 'memory' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="vision-card" style={{ padding: '28px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <div>
-                  <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <UserCheck size={24} color="var(--accent-cyan)" /> AI Memory Center
-                  </h2>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>
-                    Yapay zekanın sizin hakkınızda öğrendiği tüm bilgiler (Eklenebilir, Düzenlenebilir, Silinebilir):
-                  </p>
+                    </div>
+                  )}
+                  <div ref={chatBottomRef} />
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Add Memory Form */}
-              <form onSubmit={handleAddMemory} style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-                <select 
-                  className="vision-input" 
-                  value={newMemCat} 
-                  onChange={e => setNewMemCat(e.target.value)}
-                  style={{ width: '200px' }}
-                >
+          {/* TAB 2: AI MEMORY SYSTEM */}
+          {activeTab === 'memory' && (
+            <div className="linear-card" style={{ padding: '24px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <UserCheck size={22} color="var(--cyan)" /> AI Memory Center
+              </h2>
+
+              <form onSubmit={handleAddMemory} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                <select className="command-input" style={{ width: '180px', background: 'rgba(8,9,10,0.8)', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-dim)' }} value={newMemCat} onChange={e => setNewMemCat(e.target.value)}>
                   <option value="🧠 İlgi Alanları">🧠 İlgi Alanları</option>
                   <option value="📚 Eğitim">📚 Eğitim</option>
                   <option value="🎯 Hedefler">🎯 Hedefler</option>
                   <option value="💼 Projeler">💼 Projeler</option>
                   <option value="⚙️ Tercihler">⚙️ Tercihler</option>
                 </select>
-                <input 
-                  type="text" 
-                  className="vision-input" 
-                  placeholder="Yapay zekanın sizin hakkınızda bilmesini istediğiniz bir bilgi ekleyin..." 
-                  value={newMemFact}
-                  onChange={e => setNewMemFact(e.target.value)}
-                  style={{ flex: 1 }}
-                />
-                <button type="submit" className="vision-btn">
-                  <Plus size={16} /> Ekle
-                </button>
+                <input type="text" className="command-input" style={{ flex: 1, background: 'rgba(8,9,10,0.8)', padding: '10px', borderRadius: '10px', border: '1px solid var(--border-dim)' }} placeholder="Yapay zekaya yeni bir bilgi öğret..." value={newMemFact} onChange={e => setNewMemFact(e.target.value)} />
+                <button type="submit" className="command-btn"><Plus size={14} /> Ekle</button>
               </form>
 
-              {/* Structured 5 Core Memory Blocks */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '18px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
                 {memoryItems.map((item) => (
-                  <div key={item.id} className="vision-card" style={{ padding: '18px', background: 'rgba(5, 7, 14, 0.7)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)', textTransform: 'uppercase', padding: '3px 8px', borderRadius: '6px', background: 'rgba(56, 189, 248, 0.12)' }}>
-                        {item.category}
-                      </span>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button 
-                          onClick={() => { setEditingMemId(item.id); setEditingMemText(item.fact); }}
-                          style={{ background: 'none', border: 'none', color: 'var(--accent-amber)', cursor: 'pointer' }}
-                        >
-                          <Edit3 size={14} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteMemory(item.id)}
-                          style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer' }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                  <div key={item.id} className="linear-card" style={{ padding: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>{item.category}</span>
+                      <button onClick={() => handleDeleteMemory(item.id)} style={{ background: 'none', border: 'none', color: 'var(--rose)', cursor: 'pointer' }}><Trash2 size={14} /></button>
                     </div>
-
-                    {editingMemId === item.id ? (
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                        <input 
-                          type="text" 
-                          className="vision-input"
-                          value={editingMemText}
-                          onChange={e => setEditingMemText(e.target.value)}
-                          style={{ fontSize: '13px', padding: '6px 10px' }}
-                        />
-                        <button onClick={() => handleSaveEditMemory(item.id)} className="vision-btn" style={{ padding: '6px 12px' }}>
-                          <Check size={14} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: '15px', color: '#fff', fontWeight: 600, lineHeight: '1.5' }}>
-                        {item.fact}
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-dim)', marginTop: '12px' }}>
-                      <span>Güven: %{item.confidence}</span>
-                      <span>Kaynak: {item.learned_from}</span>
-                    </div>
+                    <div style={{ fontSize: '14px', color: '#fff', fontWeight: 600 }}>{item.fact}</div>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* TAB 3: INTERACTIVE AI AGENTS HUB */}
-        {activeTab === 'agents' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="vision-card" style={{ padding: '28px' }}>
-              <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#fff', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Cpu size={24} color="var(--accent-violet)" /> Autonomous AI Agents
+          {/* TAB 3: AI AGENTS */}
+          {activeTab === 'agents' && (
+            <div className="linear-card" style={{ padding: '24px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Cpu size={22} color="var(--violet)" /> Autonomous AI Agents
               </h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '24px' }}>
-                Sizin yerinize otonom olarak çalışan ve sonuç üreten uzman yapay zeka ajanları:
-              </p>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-                <div className="vision-card" style={{ padding: '20px', background: 'rgba(5, 7, 14, 0.8)' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <CalendarIcon size={18} color="var(--accent-violet)" /> Planning Agent
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '8px 0 16px 0' }}>Günlük ve haftalık takvim planlama.</div>
-                  <button 
-                    onClick={() => { setActiveTab('chat'); handleRunAgent("Planning Agent", "Haftamı düzenle", ["✓ Takvim analiz edildi", "✓ Öncelikler belirlendi", "✓ Plan oluşturuldu"]); }}
-                    className="vision-btn"
-                    style={{ width: '100%', justifyContent: 'center', fontSize: '13px' }}
-                  >
-                    Haftamı Düzenle <ArrowRight size={14} />
-                  </button>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
+                <div className="linear-card" style={{ padding: '18px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>Planning Agent</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '6px 0 14px 0' }}>Takvim ve zaman optimizasyonu.</div>
+                  <button onClick={() => { setActiveTab('chat'); handleRunAgent("Planning Agent", "Haftamı düzenle", ["✓ Takvim analiz edildi", "✓ Öncelikler belirlendi", "✓ Plan oluşturuldu"]); }} className="command-btn" style={{ width: '100%', justifyContent: 'center' }}>Haftamı Düzenle</button>
                 </div>
-
-                <div className="vision-card" style={{ padding: '20px', background: 'rgba(5, 7, 14, 0.8)' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <GraduationCap size={18} color="var(--accent-cyan)" /> Learning Agent
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '8px 0 16px 0' }}>Eğitim ve ders programı hazırlama.</div>
-                  <button 
-                    onClick={() => { setActiveTab('chat'); handleRunAgent("Learning Agent", "Ders programı hazırla", ["✓ Geçmiş öğrenme verileri incelendi", "✓ Program oluşturuldu"]); }}
-                    className="vision-btn"
-                    style={{ width: '100%', justifyContent: 'center', fontSize: '13px' }}
-                  >
-                    Ders Programı Hazırla <ArrowRight size={14} />
-                  </button>
-                </div>
-
-                <div className="vision-card" style={{ padding: '20px', background: 'rgba(5, 7, 14, 0.8)' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Search size={18} color="var(--accent-amber)" /> Research Agent
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '8px 0 16px 0' }}>Derin konu araştırması ve özet.</div>
-                  <button 
-                    onClick={() => { setActiveTab('chat'); handleRunAgent("Research Agent", "Teknik konu araştırması yap", ["✓ Kaynaklar taranıyor", "✓ Özet sentezlendi"]); }}
-                    className="vision-btn"
-                    style={{ width: '100%', justifyContent: 'center', fontSize: '13px' }}
-                  >
-                    Araştırma Yap <ArrowRight size={14} />
-                  </button>
+                <div className="linear-card" style={{ padding: '18px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>Learning Agent</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '6px 0 14px 0' }}>Ders ve yetenek rotaları.</div>
+                  <button onClick={() => { setActiveTab('chat'); handleRunAgent("Learning Agent", "Ders programı hazırla", ["✓ Öğrenme verileri incelendi", "✓ Program oluşturuldu"]); }} className="command-btn" style={{ width: '100%', justifyContent: 'center' }}>Ders Programı Hazırla</button>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* TAB 4: LIFE DASHBOARD */}
-        {activeTab === 'dashboard' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="vision-card" style={{ padding: '28px' }}>
-              <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#fff', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Layers size={24} color="var(--accent-cyan)" /> Life Dashboard (7 Hayat Kategorisi)
-              </h2>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                <div className="vision-card" style={{ padding: '18px', background: 'rgba(5, 7, 14, 0.6)' }}>
-                  <div style={{ fontWeight: 700, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-                    <BookOpen size={18} /> 🧠 Knowledge
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>{memoryItems.length} Bilgi Deposu</div>
-                </div>
-
-                <div className="vision-card" style={{ padding: '18px', background: 'rgba(5, 7, 14, 0.6)' }}>
-                  <div style={{ fontWeight: 700, color: 'var(--accent-violet)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-                    <Briefcase size={18} /> 💼 Projects
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>{projects.length} Aktif Proje</div>
-                </div>
-
-                <div className="vision-card" style={{ padding: '18px', background: 'rgba(5, 7, 14, 0.6)' }}>
-                  <div style={{ fontWeight: 700, color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-                    <CalendarIcon size={18} /> 📅 Schedule
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>{tasks.length} Görev</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 5: PRIVACY CENTER */}
-        {activeTab === 'privacy' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="vision-card" style={{ padding: '28px' }}>
-              <h2 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--accent-rose)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <ShieldCheck size={24} /> Privacy & Data Control Center
-              </h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '24px' }}>
-                Kişisel verileriniz ve yapay zekanın sahip olduğu tüm erişim izinleri üzerinde %100 tam kontrole sahipsiniz:
-              </p>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                <div className="vision-card" style={{ padding: '20px', background: 'rgba(5, 7, 14, 0.8)' }}>
-                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Lock size={18} color="var(--accent-emerald)" /> Veri Gizliliği
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                    Tüm verileriniz şifrelenmiş kişisel veritabanında saklanır ve asla 3. taraf reklam şirketleriyle paylaşılmaz.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
       </main>
 
-      {/* Mobile Responsive Bottom Navigation Bar */}
-      <div className="mobile-nav-bar">
-        <div className={`mobile-nav-item ${activeTab === 'briefing' ? 'active' : ''}`} onClick={() => setActiveTab('briefing')}>
-          <Compass size={20} />
+      {/* Mobile Bottom Bar */}
+      <div className="mobile-bottom-bar">
+        <div className={`mobile-item ${activeTab === 'briefing' ? 'active' : ''}`} onClick={() => setActiveTab('briefing')}>
+          <Compass size={18} />
           <span>Briefing</span>
         </div>
-        <div className={`mobile-nav-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
-          <MessageSquare size={20} />
+        <div className={`mobile-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
+          <MessageSquare size={18} />
           <span>Chat</span>
         </div>
-        
-        {/* Central Floating AI Action Trigger Button */}
-        <div className="floating-ai-btn" onClick={() => { setActiveTab('chat'); }}>
-          <Sparkles size={24} color="#fff" />
-        </div>
-
-        <div className={`mobile-nav-item ${activeTab === 'memory' ? 'active' : ''}`} onClick={() => setActiveTab('memory')}>
-          <UserCheck size={20} />
+        <div className={`mobile-item ${activeTab === 'memory' ? 'active' : ''}`} onClick={() => setActiveTab('memory')}>
+          <UserCheck size={18} />
           <span>Memory</span>
-        </div>
-        <div className={`mobile-nav-item ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => setActiveTab('agents')}>
-          <Cpu size={20} />
-          <span>Agents</span>
         </div>
       </div>
     </div>
