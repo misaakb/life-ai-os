@@ -17,7 +17,7 @@ class AgentRouter:
         profile_str = "\n".join([f"- {k}: {v['value']}" for k, v in profile.items()]) if profile else "Bilinmiyor."
 
         system_prompt = f"""
-Sen sadece not alan bir araç DEĞİLSİN. Sen Misa'nın hayatını canlı takip eden, kararlarında rehberlik eden ve proaktif yönlendirme yapan KİŞİSEL YAPAY ZEKA HAYAT KOÇUSUN (Life AI OS).
+Sen Misa'nın tüm hayatını 7/24 canlı takip eden, kararlarında rehberlik eden ve proaktif yönlendirme yapan KİŞİSEL YAPAY ZEKA ORTAĞISIN (Life AI OS).
 
 Kullanıcı Profili:
 {profile_str}
@@ -28,13 +28,18 @@ Mevcut Son Bağlam:
 Kullanıcı Girdisi: "{user_input}"
 Kaynak: {source}
 
+GÖREVİN:
+1. Kullanıcının mesajına samimi, zeki, net ve aksiyon odaklı yanıt ver. Robotik laflar ('İncelemeye aldım', 'Kaydettim' vb.) ASLA KULLANMA.
+2. Girdide geçen bir yapılacak iş varsa otomatik görev çıkar.
+3. Girdi bir risk veya fırsat içeriyorsa anında proaktif tavsiye üret.
+
 Lütfen şu formatta JSON döndür:
 {{
-    "reply": "Kullanıcıya verilecek doğrudan, samimi, akıllı, derinlikli ve yönlendirici yanıt",
+    "reply": "Kullanıcıya verilecek doğrudan, samimi, zeki ve aksiyon odaklı yanıt",
     "category": "personal | project | call | research | task",
-    "summary": "1 cümlelik öz ve analitik özet",
+    "summary": "1 cümlelik analitik özet",
     "extracted_tasks": ["Yapılacak iş 1"],
-    "proactive_insight": "Bu girdiye dayanarak kullanıcıya verilmesi gereken PROAKTİF TAVSİYE / UYARI",
+    "proactive_insight": "Bu girdiye dayanarak verilecek PROAKTİF TAVSİYE / UYARI",
     "tags": ["etiket1", "etiket2"]
 }}
 """
@@ -75,7 +80,7 @@ Lütfen şu formatta JSON döndür:
 
         return {
             "log_id": log_id,
-            "reply": result.get("reply", "Anlaşıldı, canlı hafızaya işlendi."),
+            "reply": result.get("reply", "Harika! Bilgiyi canlı hafızaya kaydettim ve aksiyon planına ekledim."),
             "category": result.get("category", "personal"),
             "summary": result.get("summary", ""),
             "extracted_tasks": added_tasks,
@@ -84,7 +89,7 @@ Lütfen şu formatta JSON döndür:
         }
 
     def _call_ai(self, prompt: str, user_input: str, source: str = "web") -> dict:
-        api_key = os.getenv("GEMINI_API_KEY", self.api_key)
+        api_key = os.getenv("GEMINI_API_KEY", self.api_key).strip()
         if api_key:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
@@ -103,11 +108,11 @@ Lütfen şu formatta JSON döndür:
 
         category = "task" if "yap" in user_input.lower() or "hazırla" in user_input.lower() else "personal"
         return {
-            "reply": f"Anlaşıldı! Girdini canlı hafızaya kaydettim: '{user_input[:60]}...'",
+            "reply": f"Harika! '{user_input}' konusunu canlı takip listeme aldım. İlgili aksiyonları ve görevleri zaman çizelgende görebilirsin.",
             "category": category,
             "summary": user_input[:100],
             "extracted_tasks": [user_input] if category == "task" else [],
-            "proactive_insight": f"Girdiğiniz '{user_input[:40]}' konusunu takip listeme aldım.",
+            "proactive_insight": f"Girdiğiniz '{user_input[:40]}' konusu takibe alındı.",
             "tags": ["canlı-takip", source]
         }
 
