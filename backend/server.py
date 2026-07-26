@@ -5,19 +5,21 @@ import time
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, List
 
 # Ensure backend directory is in sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import PORT, HOST, TELEGRAM_BOT_TOKEN
+from config import PORT, HOST, TELEGRAM_BOT_TOKEN, BASE_DIR
 from memory_engine import memory
 from agent_router import agent_router
 from proactive_advisor import proactive_advisor
 from connectors.telegram_bot import run_bot_polling
 
-app = FastAPI(title="Life AI OS Production Backend", version="2.5.0")
+app = FastAPI(title="Life AI OS Production Backend", version="2.6.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,14 +58,25 @@ def startup_event():
         t = threading.Thread(target=run_bot_polling, daemon=True)
         t.start()
 
-@app.get("/")
-def read_root():
-    return {
-        "status": "online", 
-        "system": "Life AI OS Production Engine", 
-        "version": "2.5.0",
-        "telegram_bot": "active" if os.getenv("TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN) else "missing_token"
-    }
+# --- Serve Production React Web Dashboard ---
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
+if FRONTEND_DIST.exists():
+    assets_dir = FRONTEND_DIST / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/")
+    def serve_dashboard():
+        return FileResponse(FRONTEND_DIST / "index.html")
+else:
+    @app.get("/")
+    def read_root():
+        return {
+            "status": "online", 
+            "system": "Life AI OS Production Engine", 
+            "version": "2.6.0",
+            "telegram_bot": "active" if os.getenv("TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN) else "missing_token"
+        }
 
 @app.get("/health")
 def health_check():
@@ -152,7 +165,6 @@ def get_stats():
 
 if __name__ == "__main__":
     import uvicorn
-    # Bind dynamically to os.getenv("PORT") or fallback to config.PORT
     target_port = int(os.getenv("PORT", PORT))
     target_host = os.getenv("HOST", "0.0.0.0")
     print(f"[Server Launch] Running on http://{target_host}:{target_port}")
