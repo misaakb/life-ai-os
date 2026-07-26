@@ -13,6 +13,9 @@ RUN mkdir -p data
 # Copy backend code
 COPY backend/ ./backend/
 
+# Set Python path to include backend
+ENV PYTHONPATH=/app/backend
+
 EXPOSE 8008
 
 CMD ["python", "backend/server.py"]
