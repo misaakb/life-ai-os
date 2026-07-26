@@ -3,7 +3,7 @@ import {
   BrainCircuit, Compass, Terminal, Cpu, ShieldCheck, Zap, Send, Sparkles, 
   Layers, Search, CheckCircle2, Clock, Trash2, Plus, ArrowRight, UserCheck, 
   BookOpen, Briefcase, Calendar as CalendarIcon, DollarSign, Heart, Target, GraduationCap,
-  Activity, Bell, Lock, ShieldAlert, Lightbulb, RefreshCw, Car, Edit3, Check, MessageSquare
+  Activity, Bell, Lock, ShieldAlert, Lightbulb, RefreshCw, Car, Edit3, Check, MessageSquare, Radio
 } from 'lucide-react';
 
 export default function App() {
@@ -17,15 +17,16 @@ export default function App() {
   const [userProfile, setUserProfile] = useState({});
   const [stats, setStats] = useState({});
 
-  // Chat & Command State
+  // Chat & Swarm State
   const [inputPrompt, setInputPrompt] = useState('');
   const [isThinking, setIsThinking] = useState(false);
+  const [runningSwarm, setRunningSwarm] = useState(false);
   const [chatHistory, setChatHistory] = useState([
     {
       id: 'init-1',
       sender: 'ai',
-      text: 'İyi günler Misa. Dijital ikincil beynin aktif. Bugün planlama yapmak, konuları araştırmak veya hedeflerini gözden geçirmek için komut verebilirsin.',
-      execution_steps: ['✓ Hafıza Taranıyor', '✓ Dijital Beyin Senkronize']
+      text: 'İyi günler Misa. 7 Otonom AI Ajanı canlı olarak hazır. Sistemdeki tüm araştırmalar, planlamalar ve telemetri uyarıları arka planda otonom yürütülüyor.',
+      execution_steps: ['✓ 7-Agent Swarm Aktif', '✓ Arka Plan İzleme Açık']
     }
   ]);
   const [activeTab, setActiveTab] = useState('briefing'); // 'briefing', 'chat', 'memory', 'agents', 'dashboard', 'privacy'
@@ -33,8 +34,6 @@ export default function App() {
   // Memory Form
   const [newMemFact, setNewMemFact] = useState('');
   const [newMemCat, setNewMemCat] = useState('🧠 İlgi Alanları');
-  const [editingMemId, setEditingMemId] = useState(null);
-  const [editingMemText, setEditingMemText] = useState('');
 
   const chatBottomRef = useRef(null);
 
@@ -78,17 +77,38 @@ export default function App() {
     }
   };
 
+  const handleRunSwarm = async () => {
+    setRunningSwarm(true);
+    try {
+      const res = await fetch('/api/agents/swarm/run', { method: 'POST' });
+      if (res.ok) {
+        await fetchData();
+        const aiMsg = {
+          id: Date.now().toString(),
+          sender: 'ai',
+          text: '⚡ 7 Otonom AI Ajanı eş zamanlı çalıştırıldı. Tüm zaman blokları, araştırma özetleri ve proaktif tavsiyeler güncellendi.',
+          execution_steps: [
+            '✓ Master Orchestrator', '✓ Planning Agent', '✓ Deep Research Agent', 
+            '✓ Health Agent', '✓ Finance Agent', '✓ Skill Agent', '✓ Telemetry Alert'
+          ]
+        };
+        setChatHistory(prev => [...prev, aiMsg]);
+      }
+    } catch (err) {
+      console.error("Swarm Run Error:", err);
+    } finally {
+      setRunningSwarm(false);
+    }
+  };
+
   const handleCommandSubmit = async (e, customPrompt = null) => {
     if (e) e.preventDefault();
     const promptToUse = customPrompt || inputPrompt;
     if (!promptToUse.trim()) return;
 
-    // 1. Add User Message
     const userMsg = { id: Date.now().toString(), sender: 'user', text: promptToUse };
     setChatHistory(prev => [...prev, userMsg]);
     setInputPrompt('');
-
-    // 2. Set AI Thinking State
     setIsThinking(true);
 
     try {
@@ -123,7 +143,7 @@ export default function App() {
     }
   };
 
-  const handleRunAgent = async (agentName, promptText, steps) => {
+  const handleRunSingleAgent = async (agentName, promptText, steps) => {
     setIsThinking(true);
     const userMsg = { id: Date.now().toString(), sender: 'user', text: `[${agentName}]: ${promptText}` };
     setChatHistory(prev => [...prev, userMsg]);
@@ -199,7 +219,7 @@ export default function App() {
             <UserCheck size={16} /> AI Memory ({memoryItems.length})
           </li>
           <li className={`nav-link ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => setActiveTab('agents')}>
-            <Cpu size={16} /> AI Agents
+            <Cpu size={16} /> 7-Agent Swarm
           </li>
           <li className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
             <Layers size={16} /> Life Dashboard
@@ -217,8 +237,20 @@ export default function App() {
           <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-muted)' }}>
             Digital Second Brain • <span style={{ color: '#fff' }}>Misa Workspace</span>
           </div>
-          <div className="telemetry-pill">
-            <Sparkles size={12} /> Live Sync Online
+
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button 
+              onClick={handleRunSwarm}
+              className="command-btn"
+              disabled={runningSwarm}
+              style={{ fontSize: '12.5px', padding: '6px 14px' }}
+            >
+              <Zap size={14} className={runningSwarm ? "spin" : ""} />
+              {runningSwarm ? '7 Ajan Çalışıyor...' : '⚡ 7-Agent Swarm Çalıştır'}
+            </button>
+            <div className="telemetry-pill">
+              <Radio size={12} /> 7 Ajan Canlı
+            </div>
           </div>
         </header>
 
@@ -295,10 +327,10 @@ export default function App() {
                 <button onClick={() => handleCommandSubmit(null, "Bugün ne yapmalıyım?")} className="linear-card" style={{ padding: '8px 14px', fontSize: '12.5px', cursor: 'pointer', color: '#fff', background: 'rgba(56, 189, 248, 0.1)', borderColor: 'var(--cyan)' }}>
                   🎯 Bugün ne yapmalıyım?
                 </button>
-                <button onClick={() => handleRunAgent("Planning Agent", "Haftamı düzenle", ["✓ Takvim analiz edildi", "✓ Öncelikler belirlendi", "✓ Plan oluşturuldu"])} className="linear-card" style={{ padding: '8px 14px', fontSize: '12.5px', cursor: 'pointer', color: '#fff' }}>
+                <button onClick={() => handleRunSingleAgent("Planning Agent", "Haftamı düzenle", ["✓ Takvim analiz edildi", "✓ Öncelikler belirlendi", "✓ Plan oluşturuldu"])} className="linear-card" style={{ padding: '8px 14px', fontSize: '12.5px', cursor: 'pointer', color: '#fff' }}>
                   📅 Haftamı düzenle
                 </button>
-                <button onClick={() => handleRunAgent("Learning Agent", "Ders programı hazırla", ["✓ Geçmiş öğrenme verileri incelendi", "✓ Program oluşturuldu"])} className="linear-card" style={{ padding: '8px 14px', fontSize: '12.5px', cursor: 'pointer', color: '#fff' }}>
+                <button onClick={() => handleRunSingleAgent("Learning Agent", "Ders programı hazırla", ["✓ Geçmiş öğrenme verileri incelendi", "✓ Program oluşturuldu"])} className="linear-card" style={{ padding: '8px 14px', fontSize: '12.5px', cursor: 'pointer', color: '#fff' }}>
                   📚 Ders programı hazırla
                 </button>
               </div>
@@ -370,22 +402,60 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: AI AGENTS */}
+          {/* TAB 3: 7-AGENT SWARM HUB */}
           {activeTab === 'agents' && (
             <div className="linear-card" style={{ padding: '24px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Cpu size={22} color="var(--violet)" /> Autonomous AI Agents
-              </h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Cpu size={22} color="var(--violet)" /> 7 Autonomous AI Agents Swarm
+                </h2>
+                <button onClick={handleRunSwarm} className="command-btn" disabled={runningSwarm}>
+                  <Zap size={14} className={runningSwarm ? "spin" : ""} />
+                  {runningSwarm ? 'Tüm Ajanlar Çalışıyor...' : 'Tüm Ajanları Eş Zamanlı Çalıştır'}
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
                 <div className="linear-card" style={{ padding: '18px' }}>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>Planning Agent</div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '6px 0 14px 0' }}>Takvim ve zaman optimizasyonu.</div>
-                  <button onClick={() => { setActiveTab('chat'); handleRunAgent("Planning Agent", "Haftamı düzenle", ["✓ Takvim analiz edildi", "✓ Öncelikler belirlendi", "✓ Plan oluşturuldu"]); }} className="command-btn" style={{ width: '100%', justifyContent: 'center' }}>Haftamı Düzenle</button>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--cyan)' }}>👑 Master Orchestrator Agent</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>Tüm alt ajanları koordine eder.</div>
+                  <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--emerald)' }}>● Canlı Çalışıyor</div>
                 </div>
+
                 <div className="linear-card" style={{ padding: '18px' }}>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>Learning Agent</div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '6px 0 14px 0' }}>Ders ve yetenek rotaları.</div>
-                  <button onClick={() => { setActiveTab('chat'); handleRunAgent("Learning Agent", "Ders programı hazırla", ["✓ Öğrenme verileri incelendi", "✓ Program oluşturuldu"]); }} className="command-btn" style={{ width: '100%', justifyContent: 'center' }}>Ders Programı Hazırla</button>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--violet)' }}>📅 Planning Agent</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>Takvim ve zaman bloklama.</div>
+                  <button onClick={() => { setActiveTab('chat'); handleRunSingleAgent("Planning Agent", "Haftamı düzenle", ["✓ Takvim analiz edildi", "✓ Öncelikler belirlendi", "✓ Plan oluşturuldu"]); }} className="command-btn" style={{ width: '100%', justifyContent: 'center', marginTop: '8px' }}>Çalıştır</button>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--amber)' }}>🔬 Deep Research Agent</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>Doküman & konu araştırması.</div>
+                  <button onClick={() => { setActiveTab('chat'); handleRunSingleAgent("Research Agent", "Teknik konu araştırması yap", ["✓ Kaynaklar taranıyor", "✓ Özet sentezlendi"]); }} className="command-btn" style={{ width: '100%', justifyContent: 'center', marginTop: '8px' }}>Çalıştır</button>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--rose)' }}>❤️ Health & Energy Agent</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>Yorgunluk & mola takibi.</div>
+                  <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--emerald)' }}>● Canlı Çalışıyor</div>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--amber)' }}>💰 Finance Agent</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>Bütçe & harcama analizi.</div>
+                  <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--emerald)' }}>● Canlı Çalışıyor</div>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--cyan)' }}>📚 Learning Agent</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>Ders & yetenek rotaları.</div>
+                  <button onClick={() => { setActiveTab('chat'); handleRunSingleAgent("Learning Agent", "Ders programı hazırla", ["✓ Öğrenme verileri incelendi", "✓ Program oluşturuldu"]); }} className="command-btn" style={{ width: '100%', justifyContent: 'center', marginTop: '8px' }}>Çalıştır</button>
+                </div>
+
+                <div className="linear-card" style={{ padding: '18px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--emerald)' }}>🔔 Telemetry Alert Agent</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>7/24 Kesintisiz izleme.</div>
+                  <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--emerald)' }}>● Canlı Çalışıyor</div>
                 </div>
               </div>
             </div>

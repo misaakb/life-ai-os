@@ -17,9 +17,10 @@ from config import PORT, HOST, TELEGRAM_BOT_TOKEN, BASE_DIR
 from memory_engine import memory
 from agent_router import agent_router
 from proactive_advisor import proactive_advisor
+from agents_swarm import agent_swarm
 from connectors.telegram_bot import run_bot_polling
 
-app = FastAPI(title="Life AI OS Production Engine", version="3.0.0")
+app = FastAPI(title="Life AI OS Swarm Engine", version="3.8.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,7 +58,7 @@ class MemoryItemCreate(BaseModel):
     learned_from: Optional[str] = "User Input"
 
 class AgentRunRequest(BaseModel):
-    agent_name: str # 'Research Agent', 'Planning Agent', 'Health Agent', 'Finance Agent', 'Learning Agent'
+    agent_name: str
     prompt: str
 
 @app.on_event("startup")
@@ -81,40 +82,54 @@ if FRONTEND_DIST.exists():
 else:
     @app.get("/")
     def read_root():
-        return {
-            "status": "online", 
-            "system": "Life AI OS Production Engine v3.0", 
-            "version": "3.0.0",
-            "telegram_bot": "active" if os.getenv("TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN) else "missing_token"
-        }
+        return {"status": "online", "system": "Life AI OS Swarm Engine v3.8"}
 
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
 
-# --- AI Overview Briefing Endpoint ---
+# --- 7-Agent Swarm Endpoints ---
+@app.post("/api/agents/swarm/run")
+def run_agent_swarm():
+    results = agent_swarm.run_all_agents()
+    return {"status": "success", "swarm_results": results}
+
+@app.get("/api/agents/swarm/status")
+def get_swarm_status():
+    return {
+        "active_agents": 7,
+        "agents": [
+            {"id": "orchestrator", "name": "👑 Master Orchestrator Agent", "status": "Active"},
+            {"id": "planning", "name": "📅 Planning & Time-Blocking Agent", "status": "Active"},
+            {"id": "research", "name": "🔬 Deep Research Agent", "status": "Active"},
+            {"id": "health", "name": "❤️ Health & Energy Cycle Agent", "status": "Active"},
+            {"id": "finance", "name": "💰 Finance & Budget Agent", "status": "Active"},
+            {"id": "learning", "name": "📚 Skill & Learning Agent", "status": "Active"},
+            {"id": "telemetry", "name": "🔔 Proactive Telemetry Alert Agent", "status": "Active"}
+        ]
+    }
+
+# --- Core API Endpoints ---
 @app.get("/api/overview")
 def get_overview():
     tasks = memory.get_tasks(status="pending")
     recs = memory.get_recommendations(status="active")
     projects = memory.get_projects()
     
-    # Priority breakdown
     top_priorities = [t["title"] for t in tasks[:3]]
     if not top_priorities:
-        top_priorities = ["AI Hayat Entegrasyonunu Tamamla", "Günlük Hedeflerini Belirle"]
+        top_priorities = ["AI Hayat Entegrasyonu", "Günlük Odaklanma Bloğu", "Proaktif Ajan Analizi"]
 
     return {
         "user_name": "Misa",
-        "greeting": "İyi Günler, Misa",
-        "summary_title": "Bugün senin için önemli olanlar:",
+        "greeting": "Good morning, Misa",
+        "summary_title": "Bugün seni analiz ettim. 3 önemli konu var:",
         "top_priorities": top_priorities,
         "active_recommendations_count": len(recs),
         "pending_tasks_count": len(tasks),
         "active_projects_count": len(projects)
     }
 
-# --- Memory Inspector Endpoints ---
 @app.get("/api/memory-items")
 def get_memory_items():
     return memory.get_memory_items()
@@ -134,26 +149,25 @@ def delete_memory_item(item_id: int):
     success = memory.delete_memory_item(item_id)
     return {"id": item_id, "deleted": success}
 
-# --- AI Agents Endpoints ---
 @app.get("/api/agents")
 def get_agents():
     executions = memory.get_agent_executions(limit=10)
     agents_list = [
-        {"name": "Research Agent", "role": "Derin Araştırma & Özetleme", "status": "Ready", "color": "cyan"},
-        {"name": "Planning Agent", "role": "Günlük & Haftalık Planlama", "status": "Ready", "color": "violet"},
-        {"name": "Health Agent", "role": "Enerji & Çalışma Ritmi Analizi", "status": "Ready", "color": "emerald"},
-        {"name": "Finance Agent", "role": "Bütçe & Harcama Takibi", "status": "Ready", "color": "amber"},
-        {"name": "Learning Agent", "role": "Eğitim & Yetenek Planlaması", "status": "Ready", "color": "rose"}
+        {"name": "Master Orchestrator Agent", "role": "Tüm sistemi koordine eder.", "status": "Active"},
+        {"name": "Planning Agent", "role": "Günlük & Haftalık Planlama.", "status": "Active"},
+        {"name": "Research Agent", "role": "Derin Araştırma & Özetleme.", "status": "Active"},
+        {"name": "Health Agent", "role": "Enerji & Çalışma Ritmi Analizi.", "status": "Active"},
+        {"name": "Finance Agent", "role": "Bütçe & Harcama Takibi.", "status": "Active"},
+        {"name": "Learning Agent", "role": "Eğitim & Yetenek Planlaması.", "status": "Active"},
+        {"name": "Telemetry Agent", "role": "7/24 Canlı İzleme & Uyarılama.", "status": "Active"}
     ]
     return {"agents": agents_list, "recent_executions": executions}
 
 @app.post("/api/agents/run")
 def run_agent(req: AgentRunRequest):
-    prompt_with_agent = f"[{req.agent_name} Moda]: {req.prompt}"
-    result = agent_router.process_input(user_input=prompt_with_agent, source=req.agent_name.lower().replace(" ", "_"))
+    result = agent_router.process_input(user_input=f"[{req.agent_name}]: {req.prompt}", source=req.agent_name.lower().replace(" ", "_"))
     return result
 
-# --- Core Data Endpoints ---
 @app.get("/api/logs")
 def get_logs(limit: int = 50, query: Optional[str] = None):
     if query:
@@ -233,7 +247,7 @@ def get_stats():
         "active_projects": len(projects),
         "active_recommendations": len(recs),
         "memory_facts_count": len(memories),
-        "ai_engine_status": "Life AI OS v3.0 Digital Second Brain",
+        "ai_engine_status": "Life AI OS 7-Agent Swarm Engine v3.8",
         "last_sync": logs[0]["timestamp"] if logs else "Henüz kayıt yok"
     }
 
